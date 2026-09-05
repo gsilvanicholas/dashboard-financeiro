@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 st.set_page_config(page_title="Painel Financeiro", layout="wide", initial_sidebar_state="collapsed")
 
 # 2. CONEXÃO COM O GOOGLE SHEETS
-SHEET_CSV_URL = https://docs.google.com/spreadsheets/d/e/2PACX-1vQ3VnSkS3SR48P7huQS-PWlok-wEmocdpyu71vQ1jrZjTi_kHt4bWG6NXgy_3tfxh0mgifCxRiPRHQw/pub?output=csv
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ3VnSkS3SR48P7huQS-PWlok-wEmocdpyu71vQ1jrZjTi_kHt4bWG6NXgy_3tfxh0mgifCxRiPRHQw/pub?output=csv"
 
 @st.cache_data(ttl=600)
 def carregar_dados():
