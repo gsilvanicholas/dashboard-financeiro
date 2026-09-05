@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="Painel Financeiro", layout="wide", initial_sidebar_state="collapsed")
+# 1. CONFIGURAÇÃO DA PÁGINA
+st.set_page_config(page_title="Dashboard Financeiro Executivo", layout="wide", initial_sidebar_state="expanded")
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ3VnSkS3SR48P7huQS-PWlok-wEmocdpyu71vQ1jrZjTi_kHt4bWG6NXgy_3tfxh0mgifCxRiPRHQw/pub?output=csv"
 
@@ -20,52 +22,73 @@ def carregar_dados():
 df = carregar_dados()
 
 if not df.empty:
+    # 2. CÁLCULOS DE MÉTRICAS E KPIs AVANÇADOS
     receitas = df[df['Tipo'] == 'Receita']['Valor (R$)'].sum()
     despesas = df[df['Tipo'] == 'Despesa']['Valor (R$)'].sum()
     investimentos = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
     saldo_livre = receitas - despesas - investimentos
+    
+    # Novas Métricas Analíticas
+    taxa_poupanca = (investimentos / receitas * 100) if receitas > 0 else 0
+    comprometimento_imovel = (df[df['Categoria'] == 'Parcela Apartamento']['Valor (R$)'].sum() / receitas * 100) if receitas > 0 else 0
 
-    st.markdown("<h1 style='text-align: center; color: #ec0000;'>Dashboard Financeiro Executivo</h1>", unsafe_allow_html=True)
+    # TÍTULO PRINCIPAL
+    st.markdown("<h1 style='text-align: center; color: #ec0000;'>Dashboard Financeiro Executivo & Métricas</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
+    # LINHA 1: CARTÕES DE KPIS PRINCIPAIS
     col1, col2, col3, col4 = st.columns(4)
-    # Cartões pretos (#111111) com borda vermelha Santander (#ec0000)
     with col1:
-        st.markdown(f"<div style='background-color:#111111; padding:20px; border-radius:10px; border-left: 5px solid #ec0000;'>"
-                    f"<h4 style='color:#a0a0b0; margin:0;'>Renda Total</h4>"
+        st.markdown(f"<div style='background-color:#111111; padding:18px; border-radius:10px; border-left: 5px solid #ec0000;'>"
+                    f"<h4 style='color:#a0a0b0; margin:0; font-size:13px;'>RENDA TOTAL</h4>"
                     f"<h2 style='color:#ffffff; margin:0;'>R$ {receitas:,.2f}</h2></div>", unsafe_allow_html=True)
     with col2:
-        st.markdown(f"<div style='background-color:#111111; padding:20px; border-radius:10px; border-left: 5px solid #ff4b4b;'>"
-                    f"<h4 style='color:#a0a0b0; margin:0;'>Saídas Totais</h4>"
+        st.markdown(f"<div style='background-color:#111111; padding:18px; border-radius:10px; border-left: 5px solid #ff4b4b;'>"
+                    f"<h4 style='color:#a0a0b0; margin:0; font-size:13px;'>SAÍDAS TOTAIS</h4>"
                     f"<h2 style='color:#ffffff; margin:0;'>R$ {despesas:,.2f}</h2></div>", unsafe_allow_html=True)
     with col3:
-        st.markdown(f"<div style='background-color:#111111; padding:20px; border-radius:10px; border-left: 5px solid #ec0000;'>"
-                    f"<h4 style='color:#a0a0b0; margin:0;'>Aportes & Patrimônio</h4>"
+        st.markdown(f"<div style='background-color:#111111; padding:18px; border-radius:10px; border-left: 5px solid #ec0000;'>"
+                    f"<h4 style='color:#a0a0b0; margin:0; font-size:13px;'>APORTES & PATRIMÔNIO</h4>"
                     f"<h2 style='color:#ffffff; margin:0;'>R$ {investimentos:,.2f}</h2></div>", unsafe_allow_html=True)
     with col4:
         cor_saldo = "#00e676" if saldo_livre >= 0 else "#ff4b4b"
-        st.markdown(f"<div style='background-color:#111111; padding:20px; border-radius:10px; border-left: 5px solid {cor_saldo};'>"
-                    f"<h4 style='color:#a0a0b0; margin:0;'>Saldo Livre</h4>"
+        st.markdown(f"<div style='background-color:#111111; padding:18px; border-radius:10px; border-left: 5px solid {cor_saldo};'>"
+                    f"<h4 style='color:#a0a0b0; margin:0; font-size:13px;'>SALDO LIVRE</h4>"
                     f"<h2 style='color:{cor_saldo}; margin:0;'>R$ {saldo_livre:,.2f}</h2></div>", unsafe_allow_html=True)
 
     st.write("")
-    
+
+    # LINHA 2: MÉTRICAS EXECUTIVAS COMPLEMENTARES
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.metric(label="Taxa de Poupança / Aporte", value=f"{taxa_poupanca:.1f}%", help="Percentual da renda direcionada para investimentos e patrimônio.")
+    with m2:
+        st.metric(label="Comprometimento com Imóvel", value=f"{comprometimento_imovel:.1f}%", help="Percentual da renda comprometido com as parcelas do apartamento.")
+    with m3:
+        st.metric(label="Total de Transações Registradas", value=int(len(df)))
+
+    st.markdown("---")
+
+    # GRÁFICOS VISUAIS
     col_graf1, col_graf2 = st.columns([2, 1])
+    
     with col_graf1:
-        st.markdown("### Gastos por Categoria")
+        st.markdown("### Gastos por Categoria (Detalhado)")
         df_despesas = df[df['Tipo'] == 'Despesa'].groupby('Categoria')['Valor (R$)'].sum().reset_index()
         fig_bar = px.bar(df_despesas, x='Valor (R$)', y='Categoria', orientation='h', text='Valor (R$)',
-                         color_discrete_sequence=['#ec0000']) # Barra Vermelha
+                         color_discrete_sequence=['#ec0000'])
         fig_bar.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
         fig_bar.update_traces(texttemplate='R$ %{text:,.2f}', textposition='outside')
         st.plotly_chart(fig_bar, use_container_width=True)
 
     with col_graf2:
-        st.markdown("### Distribuição de Despesas")
-        fig_pie = px.pie(df_despesas, values='Valor (R$)', names='Categoria', hole=0.6,
-                         color_discrete_sequence=px.colors.sequential.Reds_r) # Pizza em tons de vermelho
+        st.markdown("### Composição do Orçamento")
+        # Unificando despesas e investimentos para ver a pizza geral
+        df_composicao = df[df['Tipo'].isin(['Despesa', 'Investimento'])].groupby('Categoria')['Valor (R$)'].sum().reset_index()
+        fig_pie = px.pie(df_composicao, values='Valor (R$)', names='Categoria', hole=0.5,
+                         color_discrete_sequence=px.colors.sequential.Reds_r)
         fig_pie.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
         st.plotly_chart(fig_pie, use_container_width=True)
 
-    st.markdown("### Histórico de Lançamentos")
-    st.dataframe(df[['Data', 'Descrição', 'Categoria', 'Valor (R$)']], use_container_width=True)
+    st.markdown("### Histórico Completo de Lançamentos")
+    st.dataframe(df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], use_container_width=True)
