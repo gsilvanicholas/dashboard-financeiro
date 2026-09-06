@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
-import streamlit.components.v1 as components
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
 st.set_page_config(page_title="Controle Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
@@ -223,10 +222,10 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY) CORRIGIDO ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY VIA LINK DIRETO) ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
-    def gerar_connect_token():
+    def obter_link_conexao():
         try:
             client_id = st.secrets["pluggy"]["client_id"]
             client_secret = st.secrets["pluggy"]["client_secret"]
@@ -240,6 +239,7 @@ if not df_original.empty:
                 return None
                 
             api_key = auth_res.json().get("apiKey")
+            
             token_res = requests.post("https://api.pluggy.ai/connect_token", 
                 headers={"X-API-KEY": api_key},
                 json={"options": {"clientUserId": "nicholas-exec-user"}}
@@ -248,31 +248,16 @@ if not df_original.empty:
                 st.error(f"Erro Token: {token_res.text}")
                 return None
                 
-            return token_res.json().get("accessToken")
+            connect_token = token_res.json().get("accessToken")
+            return f"https://connect.pluggy.ai/?connectToken={connect_token}"
         except Exception as e:
             st.error(f"Erro: {e}")
             return None
 
-    if st.button("Conectar Conta do Santander"):
-        connect_token = gerar_connect_token()
-        if connect_token:
-            pluggy_widget_html = f"""
-            <div id="pluggy-container" style="width: 100%; min-height: 500px; display: flex; justify-content: center; align-items: center;"></div>
-            <script src="https://api.pluggy.ai/connect.js"></script>
-            <script>
-                const pluggyConnect = new PluggyConnect({{
-                    connectToken: "{connect_token}",
-                    onSuccess: (data) => {{
-                        document.getElementById("pluggy-container").innerHTML = "<div style='color: #00e676; font-family: sans-serif; text-align: center; padding: 20px;'><h3>✅ Conta Conectada com Sucesso!</h3><p>Item ID:</p><code style='background: #110f1f; padding: 10px; color: #00f2fe; font-size: 16px; border-radius: 6px;'>" + data.item.id + "</code></div>";
-                    }},
-                    onError: (error) => {{
-                        console.error("Erro:", error);
-                    }}
-                }});
-                pluggyConnect.init();
-            </script>
-            """
-            components.html(pluggy_widget_html, height=550, scrolling=True)
+    link_pluggy = obter_link_conexao()
+    if link_pluggy:
+        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Clique no botão abaixo para abrir o assistente seguro de Open Finance em uma nova página, conectar sua conta do Santander e obter o seu Item ID:</p>", unsafe_allow_html=True)
+        st.link_button("🚀 Abrir Assistente Open Finance (Santander)", link_pluggy)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
