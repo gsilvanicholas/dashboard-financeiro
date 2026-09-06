@@ -272,14 +272,14 @@ if not df_original.empty:
     ])
     
     with tab_fluxo:
-        st.markdown("<h3 style='font-size: 16px; font-weight: 800; color: #ffffff;'>Fluxo de Caixa Consolidado</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='color: #8b949e; font-size: 11px; margin-bottom: 20px;'>Movimentações correntes integradas do Santander e orçamento planejado.</p>", unsafe_allow_html=True)
+        st.markdown("<h3 style='font-size: 16px; font-weight: 800; color: #ffffff;'>Fluxo de Caixa Consolidado (Planilha + Open Finance)</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #8b949e; font-size: 11px; margin-bottom: 20px;'>Visão unificada de todas as entradas, saídas e compromissos financeiros do período.</p>", unsafe_allow_html=True)
         
         col_f1, col_f2 = st.columns([1.2, 1])
         with col_f1:
             st.markdown(f"""
                 <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 18px; margin-bottom: 20px;">
-                    <div style="color: #f87171; font-size: 10px; font-weight: 700; text-transform: uppercase;">DESPESAS DO PERÍODO</div>
+                    <div style="color: #f87171; font-size: 10px; font-weight: 700; text-transform: uppercase;">DESPESAS TOTAIS DO PERÍODO</div>
                     <div style="color: #f87171; font-size: 22px; font-weight: 800; margin-top: 4px;">R$ {despesas:,.2f}</div>
                 </div>
             """, unsafe_allow_html=True)
@@ -300,15 +300,26 @@ if not df_original.empty:
                 </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("<h4 style='font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 25px; margin-bottom: 12px;'>Extrato de Lançamentos Recentes</h4>", unsafe_allow_html=True)
-        for tx in transacoes_banco:
-            val_c = "#34d399" if tx['Tipo'] == 'Receita' else "#f87171"
-            sinal = "+" if tx['Tipo'] == 'Receita' else "-"
+        st.markdown("<h4 style='font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 25px; margin-bottom: 12px;'>Todas as Transações Unificadas (Planilha + Banco)</h4>", unsafe_allow_html=True)
+        
+        # Fusão de todas as transações da planilha + banco para exibição completa no fluxo
+        df_planilha_fluxo = df_original[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
+        df_banco_fluxo = pd.DataFrame(transacoes_banco)
+        
+        df_fluxo_total = pd.concat([df_planilha_fluxo, df_banco_fluxo], ignore_index=True)
+        df_fluxo_total = df_fluxo_total.sort_values(by='Data', ascending=False)
+        
+        for _, tx in df_fluxo_total.iterrows():
+            is_rec = tx['Tipo'] in ['Receita', 'Investimento'] and tx['Tipo'] != 'Despesa'
+            val_c = "#34d399" if tx['Tipo'] == 'Receita' else ("#a78bfa" if tx['Tipo'] == 'Investimento' else "#f87171")
+            sinal = "+" if tx['Tipo'] == 'Receita' else ("•" if tx['Tipo'] == 'Investimento' else "-")
+            status_txt = f" &bull; Status: {tx.get('Status', 'Confirmado')}"
+            
             st.markdown(f"""
                 <div class="tx-row">
                     <div>
                         <div style="color: #f8fafc; font-weight: 700; font-size: 12px;">{tx['Descrição']}</div>
-                        <div style="color: #64748b; font-size: 10px; margin-top: 2px;">Santander &bull; {tx['Categoria']} &bull; {tx['Data']}</div>
+                        <div style="color: #64748b; font-size: 10px; margin-top: 2px;">ID: {tx['ID']} &bull; {tx['Categoria']} &bull; {tx['Data']}{status_txt}</div>
                     </div>
                     <div style="color: {val_c}; font-weight: 800; font-family: monospace; font-size: 14px;">
                         {sinal}R$ {tx['Valor (R$)']:,.2f}
