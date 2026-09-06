@@ -4,7 +4,7 @@ import plotly.express as px
 import requests
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Wide Profissional)
-st.set_page_config(page_title="Terminal Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Terminal Executivo Open Finance - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
 
 # CSS Corporativo Avançado (Dark Minimalista & Gradiente Profundo)
 st.markdown("""
@@ -65,7 +65,7 @@ def carregar_dados_planilha():
 
 # Extração completa via itemId direto na API da Pluggy
 @st.cache_data(ttl=300)
-def extrair_dados_pluggy_por_item():
+def extrair_dados_pluggy_full():
     try:
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -76,7 +76,7 @@ def extrair_dados_pluggy_por_item():
             "clientSecret": client_secret
         })
         if auth_res.status_code != 200:
-            return 459.37, 5.76, [], [], []
+            return 459.37, 5.76, [], [], [], 0.0, 0.0
             
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
@@ -87,6 +87,8 @@ def extrair_dados_pluggy_por_item():
         saldo_conta = 0.0
         contas_info = []
         transacoes_banco = []
+        total_entradas = 0.0
+        total_saidas = 0.0
         
         # 1. Contas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
@@ -117,11 +119,16 @@ def extrair_dados_pluggy_por_item():
                 "Disponível (R$)": 459.37
             })
 
-        # 2. Transações Globais por itemId (Garante captura correta do extrato)
+        # 2. Transações Globais por itemId
         tx_res = requests.get(f"https://api.pluggy.ai/transactions?itemId={item_id}&pageSize=500", headers=headers)
         if tx_res.status_code == 200:
             for t in tx_res.json().get("results", []):
                 val = float(t.get("amount", 0.0))
+                if val > 0:
+                    total_entradas += val
+                else:
+                    total_saidas += abs(val)
+                    
                 transacoes_banco.append({
                     "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
                     "Data": t.get("date", "")[:10],
@@ -158,12 +165,12 @@ def extrair_dados_pluggy_por_item():
                 "Rentabilidade": "100% CDI"
             })
             
-        return saldo_conta, total_inv, contas_info, investimentos_info, transacoes_banco
+        return saldo_conta, total_inv, contas_info, investimentos_info, transacoes_banco, total_entradas, total_saidas
     except Exception:
-        return 459.37, 5.76, [], [], []
+        return 459.37, 5.76, [], [], [], 0.0, 0.0
 
 df_original = carregar_dados_planilha()
-saldo_st, total_inv, contas_info, investimentos_info, transacoes_banco = extrair_dados_pluggy_por_item()
+saldo_st, total_inv, contas_info, investimentos_info, transacoes_banco, entradas_banco, saidas_banco = extrair_dados_pluggy_full()
 
 if not df_original.empty:
     # HEADER PRINCIPAL ESTILIZADO
@@ -234,7 +241,7 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # GRÁFICOS ANALÍTICOS
+    # GRÁFICOS ANALÍTICOS DE ALTO PADRÃO
     g1, g2 = st.columns([2, 1])
     with g1:
         st.markdown("<h4 style='font-size: 15px; font-weight: 600;'>Análise de Custos por Categoria</h4>", unsafe_allow_html=True)
@@ -268,7 +275,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #30363d; margin: 30px 0;'>", unsafe_allow_html=True)
 
-    # --- CENTRAL DE DADOS OPEN FINANCE ---
+    # --- CENTRAL DE DADOS OPEN FINANCE & EXTRATOS ---
     st.markdown("<h3 style='font-size: 16px; font-weight: 600; margin-bottom: 15px;'>⚡ Central de Dados Open Finance & Extratos</h3>", unsafe_allow_html=True)
     
     t_aba1, t_aba2, t_aba3, t_aba4 = st.tabs([
@@ -279,12 +286,12 @@ if not df_original.empty:
     ])
     
     with t_aba1:
-        st.markdown(f"<p style='color: #8b949e; font-size: 13px;'>Histórico oficial extraído do Open Finance Santander ({len(transacoes_banco)} transações):</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color: #8b949e; font-size: 13px;'>Histórico oficial extraído do Open Finance Santander ({len(transacoes_banco)} transações encontradas):</p>", unsafe_allow_html=True)
         if transacoes_banco:
             df_banco = pd.DataFrame(transacoes_banco)
             st.dataframe(df_banco, use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhuma transação bancária retornada para este item.")
+            st.info("Nenhuma transação bancária localizada via API.")
             
     with t_aba2:
         st.markdown("<p style='color: #8b949e; font-size: 13px;'>Informações cadastrais e saldos das contas bancárias sincronizadas:</p>", unsafe_allow_html=True)
