@@ -222,10 +222,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY VIA LINK DIRETO) ---
-    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
-    
-    def obter_link_conexao():
+ def obter_link_conexao():
         try:
             client_id = st.secrets["pluggy"]["client_id"]
             client_secret = st.secrets["pluggy"]["client_secret"]
@@ -249,22 +246,8 @@ if not df_original.empty:
                 return None
                 
             connect_token = token_res.json().get("accessToken")
-            return f"https://connect.pluggy.ai/?connectToken={connect_token}"
+            # CORREÇÃO: Alterado de 'connectToken=' para 'token='
+            return f"https://connect.pluggy.ai/?token={connect_token}"
         except Exception as e:
             st.error(f"Erro: {e}")
             return None
-
-    link_pluggy = obter_link_conexao()
-    if link_pluggy:
-        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Clique no botão abaixo para abrir o assistente seguro de Open Finance em uma nova página, conectar sua conta do Santander e obter o seu Item ID:</p>", unsafe_allow_html=True)
-        st.link_button("🚀 Abrir Assistente Open Finance (Santander)", link_pluggy)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- TABELA DE GASTOS EM DESTAQUE EXTREMO ---
-    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=True)
-    st.dataframe(
-        df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
-        use_container_width=True,
-        hide_index=True
-    )
