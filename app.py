@@ -222,7 +222,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE COM VALIDAÇÃO ROBUSTA ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE COM CORREÇÃO DE PARÂMETRO ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
     def obter_url_pluggy():
@@ -237,7 +237,7 @@ if not df_original.empty:
             
             auth_res = requests.post("https://api.pluggy.ai/auth", json=payload)
             if auth_res.status_code != 200:
-                st.error(f"Erro Auth Pluggy: {auth_res.text} | ID Lido: {client_id[:6]}...")
+                st.error(f"Erro Auth Pluggy: {auth_res.text}")
                 return None
                 
             api_key = auth_res.json().get("apiKey")
@@ -251,7 +251,8 @@ if not df_original.empty:
                 return None
                 
             connect_token = token_res.json().get("accessToken")
-            return f"https://connect.pluggy.ai/?token={connect_token}"
+            # Correção exata exigida pelo widget web da Pluggy: 'connectToken='
+            return f"https://connect.pluggy.ai/?connectToken={connect_token}"
         except Exception as e:
             st.error(f"Erro crítico: {e}")
             return None
