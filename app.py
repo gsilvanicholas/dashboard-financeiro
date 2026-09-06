@@ -316,7 +316,7 @@ if not df_original.empty:
 
     # --- ABAS PRINCIPAIS ---
     tab_fluxo, tab_extrato, tab_ativos, tab_metadados, tab_unificado = st.tabs([
-        "📊 Fluxo de Caixa (Pluggy Style)", 
+        "📊 Fluxo de Caixa", 
         "🏦 Extrato Bancário Real", 
         "📈 Investimentos CDB", 
         "💳 Contas & Metadados", 
@@ -334,20 +334,20 @@ if not df_original.empty:
                     <div style="color: #f87171; font-size: 11px; font-weight: 700; text-transform: uppercase;">DESPESAS</div>
                     <div style="color: #f87171; font-size: 26px; font-weight: 800; margin-top: 4px;">R$ 2.458,74</div>
                     <div style="color: #64748b; font-size: 11px; margin-bottom: 18px;">Transações categorizadas no período</div>
-                    
-                    <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 4px; display: flex; justify-content: space-between;"><span>Shopping</span><span>R$ 647,09</span></div>
-                    <div style="background: #1e293b; border-radius: 4px; height: 6px; margin-bottom: 12px;"><div style="background: #f87171; width: 65%; height: 6px; border-radius: 4px;"></div></div>
-                    
-                    <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 4px; display: flex; justify-content: space-between;"><span>School / Educação</span><span>R$ 130,98</span></div>
-                    <div style="background: #1e293b; border-radius: 4px; height: 6px; margin-bottom: 12px;"><div style="background: #a78bfa; width: 25%; height: 6px; border-radius: 4px;"></div></div>
-                    
-                    <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 4px; display: flex; justify-content: space-between;"><span>Groceries / Alimentação</span><span>R$ 50,00</span></div>
-                    <div style="background: #1e293b; border-radius: 4px; height: 6px;"><div style="background: #3b82f6; width: 10%; height: 6px; border-radius: 4px;"></div></div>
                 </div>
             """, unsafe_allow_html=True)
+            
+            # Barras nativas do Streamlit para evitar falhas de renderização HTML
+            st.text("Shopping (R$ 647,09)")
+            st.progress(0.65)
+            st.text("School / Educação (R$ 130,98)")
+            st.progress(0.25)
+            st.text("Groceries / Alimentação (R$ 50,00)")
+            st.progress(0.10)
+            
         with fx2:
             st.markdown("""
-                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 22px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 180px;">
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 22px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 220px;">
                     <div style="color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase;">Despesas Futuras</div>
                     <div style="color: #475569; font-size: 12px; margin-top: 6px;">Nenhuma despesa futura encontrada.</div>
                 </div>
