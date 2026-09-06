@@ -3,24 +3,24 @@ import pandas as pd
 import plotly.express as px
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
-st.set_page_config(page_title="Enterprise Financial System", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Controle Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS Corporativo Estilo BI System
+# CSS Corporativo Avançado (Fundo Preto Profundo & Roxo Neon / Celeste)
 st.markdown("""
     <style>
     .stApp {
         background-color: #07060d;
     }
+    /* Ocultar barra lateral antiga */
     [data-testid="stSidebar"] {
-        background-color: #0d0b16;
-        border-right: 1px solid #1f1b3c;
+        display: none;
     }
     .metric-card {
         background: #110f1f;
         border: 1px solid #26214a;
-        padding: 20px;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        padding: 18px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
     .metric-title {
         color: #8b85a3;
@@ -32,10 +32,10 @@ st.markdown("""
     }
     .metric-value {
         color: #ffffff;
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 700;
     }
-    h1, h2, h3 {
+    h1, h2, h3, h4 {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     </style>
@@ -57,22 +57,32 @@ def carregar_dados():
 df_original = carregar_dados()
 
 if not df_original.empty:
-    # --- SIDEBAR DE FILTROS CORPORATIVOS ---
-    st.sidebar.markdown("### 🎛️ Painel de Filtros")
-    st.sidebar.markdown("---")
+    # --- HEADER EXECUTIVO ---
+    st.markdown("<h2 style='color: #f1f0f5; font-weight: 700; margin-bottom: 0; letter-spacing: 0.5px;'>CONTROLE FINANCEIRO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #00f2fe; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER EXEC // CORE DE MONITORAMENTO PATRIMONIAL</p>", unsafe_allow_html=True)
+    st.markdown("<hr style='border: 1px solid #1f1b3c; margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
-    tipos_disponiveis = df_original['Tipo'].unique().tolist()
-    tipo_selecionado = st.sidebar.multiselect("Filtrar por Tipo", options=tipos_disponiveis, default=tipos_disponiveis)
-
-    categorias_disponiveis = df_original['Categoria'].unique().tolist()
-    categoria_selecionada = st.sidebar.multiselect("Filtrar por Categoria", options=categorias_disponiveis, default=categorias_disponiveis)
+    # --- FILTROS NO TOPO (Design Horizontal Limpo) ---
+    with st.container():
+        st.markdown("<p style='color: #b197fc; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>🔍 PAINEL DE FILTRAGEM RÁPIDA</p>", unsafe_allow_html=True)
+        f_col1, f_col2 = st.columns(2)
+        
+        tipos_disponiveis = df_original['Tipo'].unique().tolist()
+        categorias_disponiveis = df_original['Categoria'].unique().tolist()
+        
+        with f_col1:
+            tipo_selecionado = st.multiselect("Filtrar por Tipo de Transação", options=tipos_disponiveis, default=tipos_disponiveis)
+        with f_col2:
+            categoria_selecionada = st.multiselect("Filtrar por Categoria", options=categorias_disponiveis, default=categorias_disponiveis)
 
     df = df_original[
         (df_original['Tipo'].isin(tipo_selecionado)) & 
         (df_original['Categoria'].isin(categoria_selecionada))
     ]
 
-    # CÁLCULOS
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # CÁLCULOS DE KPIs
     receitas = df[df['Tipo'] == 'Receita']['Valor (R$)'].sum()
     despesas = df[df['Tipo'] == 'Despesa']['Valor (R$)'].sum()
     investimentos = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
@@ -81,11 +91,9 @@ if not df_original.empty:
     receita_total_base = df_original[df_original['Tipo'] == 'Receita']['Valor (R$)'].sum()
     taxa_poupanca = (investimentos / receita_total_base * 100) if receita_total_base > 0 else 0
     comprometimento_imovel = (df_original[df_original['Categoria'] == 'Parcela Apartamento']['Valor (R$)'].sum() / receita_total_base * 100) if receita_total_base > 0 else 0
-
-    # HEADER DO SISTEMA
-    st.markdown("<h2 style='color: #f1f0f5; font-weight: 600; margin-bottom: 0;'>SANTANDER EXEC // FINANCIAL CORE</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #6e688a; font-size: 13px; margin-top: 2px;'>Módulo de Monitoramento de Ativos e Fluxo de Caixa</p>", unsafe_allow_html=True)
-    st.markdown("<hr style='border: 1px solid #1f1b3c; margin-top: 10px; margin-bottom: 25px;'>", unsafe_allow_html=True)
+    
+    total_despesas_qtd = len(df[df['Tipo'] == 'Despesa'])
+    ticket_medio_despesa = (despesas / total_despesas_qtd) if total_despesas_qtd > 0 else 0
 
     # LINHA 1: KPIS PRINCIPAIS
     c1, c2, c3, c4 = st.columns(4)
@@ -121,27 +129,34 @@ if not df_original.empty:
 
     st.write("")
 
-    # LINHA 2: INDICADORES EXECUTIVOS SECUNDÁRIOS
-    s1, s2, s3 = st.columns(3)
+    # LINHA 2: MÉTRICAS EXECUTIVAS SECUNDÁRIAS
+    s1, s2, s3, s4 = st.columns(4)
     with s1:
         st.markdown(f"""
             <div class="metric-card" style="padding: 14px;">
                 <div class="metric-title">Taxa de Poupança</div>
-                <div class="metric-value" style="font-size: 18px; color: #00f2fe;">{taxa_poupanca:.1f}%</div>
+                <div class="metric-value" style="font-size: 16px; color: #00f2fe;">{taxa_poupanca:.1f}%</div>
             </div>
         """, unsafe_allow_html=True)
     with s2:
         st.markdown(f"""
             <div class="metric-card" style="padding: 14px;">
-                <div class="metric-title">Comprometimento Imobiliário</div>
-                <div class="metric-value" style="font-size: 18px; color: #b197fc;">{comprometimento_imovel:.1f}%</div>
+                <div class="metric-title">Comprometimento Imóvel</div>
+                <div class="metric-value" style="font-size: 16px; color: #b197fc;">{comprometimento_imovel:.1f}%</div>
             </div>
         """, unsafe_allow_html=True)
     with s3:
         st.markdown(f"""
             <div class="metric-card" style="padding: 14px;">
-                <div class="metric-title">Registros Filtrados</div>
-                <div class="metric-value" style="font-size: 18px; color: #ffffff;">{int(len(df))} itens</div>
+                <div class="metric-title">Ticket Médio de Gastos</div>
+                <div class="metric-value" style="font-size: 16px; color: #ff007f;">R$ {ticket_medio_despesa:,.2f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with s4:
+        st.markdown(f"""
+            <div class="metric-card" style="padding: 14px;">
+                <div class="metric-title">Itens Filtrados</div>
+                <div class="metric-value" style="font-size: 16px; color: #ffffff;">{int(len(df))} registros</div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -184,8 +199,8 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # TABELA EXECUTIVA DE DADOS
-    st.markdown("<h4 style='color: #c9c5d4; font-size: 15px; font-weight: 600; margin-bottom: 15px;'>Base de Transações Detalhada</h4>", unsafe_allow_html=True)
+    # --- TABELA DE GASTOS EM DESTAQUE ---
+    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=True)
     st.dataframe(
         df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
         use_container_width=True,
