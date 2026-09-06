@@ -228,4 +228,56 @@ if not df_original.empty:
         df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
         use_container_width=True,
         hide_index=True
-    )
+    )import streamlit as st
+import requests
+import streamlit.components.v1 as components
+
+# Função para gerar o Connect Token na API da Pluggy
+def gerar_connect_token():
+    try:
+        client_id = st.secrets["pluggy"]["client_id"]
+        client_secret = st.secrets["pluggy"]["client_secret"]
+        
+        # 1. Autenticação para obter a API Key
+        auth_res = requests.post("https://api.pluggy.ai/auth", json={
+            "clientId": client_id,
+            "clientSecret": client_secret
+        })
+        api_key = auth_res.json().get("apiKey")
+        
+        # 2. Criação do Connect Token
+        token_res = requests.post("https://api.pluggy.ai/connect_token", 
+            headers={"X-API-KEY": api_key},
+            json={"options": {"clientUserId": "nicholas-exec-user"}}
+        )
+        return token_res.json().get("accessToken")
+    except Exception as e:
+        st.error(f"Erro ao gerar token: {e}")
+        return None
+
+st.markdown("### 🔗 Sincronização Bancária (Open Finance)")
+st.markdown("Conecte sua conta do Santander com segurança para atualizar os dados de forma automatizada.")
+
+if st.button("Conectar Conta Bancária"):
+    connect_token = gerar_connect_token()
+    if connect_token:
+        # Widget JavaScript da Pluggy embutido no Streamlit
+        pluggy_widget_html = f"""
+        <script src="https://api.pluggy.ai/connect.js"></script>
+        <div id="pluggy-connect-container"></div>
+        <script>
+            const pluggyConnect = new PluggyConnect({{
+                connectToken: "{connect_token}",
+                onSuccess: (data) => {{
+                    alert("Conta conectada com sucesso! Item ID: " + data.item.id);
+                }},
+                onError: (error) => {{
+                    console.error("Erro na conexão:", error);
+                }}
+            }});
+            pluggyConnect.init();
+        </script>
+        """
+        components.html(pluggy_widget_html, height=600)
+    else:
+        st.error("Não foi possível iniciar o assistente de conexão.")
