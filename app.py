@@ -222,7 +222,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE COM CORREÇÃO DE PARÂMETRO ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE COM PAYLOAD CORRIGIDO ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
     def obter_url_pluggy():
@@ -230,28 +230,26 @@ if not df_original.empty:
             client_id = str(st.secrets["pluggy"]["client_id"]).strip()
             client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
             
-            payload = {
+            auth_res = requests.post("https://api.pluggy.ai/auth", json={
                 "clientId": client_id,
                 "clientSecret": client_secret
-            }
-            
-            auth_res = requests.post("https://api.pluggy.ai/auth", json=payload)
+            })
             if auth_res.status_code != 200:
                 st.error(f"Erro Auth Pluggy: {auth_res.text}")
                 return None
                 
             api_key = auth_res.json().get("apiKey")
             
+            # Payload corrigido exatamente com o formato de options exigido pela Pluggy
             token_res = requests.post("https://api.pluggy.ai/connect_token", 
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"clientUserId": "nicholas-exec-user"}
+                json={"options": {"clientUserId": "nicholas-exec-user"}}
             )
             if token_res.status_code != 200:
                 st.error(f"Erro Connect Token: {token_res.text}")
                 return None
                 
             connect_token = token_res.json().get("accessToken")
-            # Correção exata exigida pelo widget web da Pluggy: 'connectToken='
             return f"https://connect.pluggy.ai/?connectToken={connect_token}"
         except Exception as e:
             st.error(f"Erro crítico: {e}")
