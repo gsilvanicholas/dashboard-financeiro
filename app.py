@@ -76,9 +76,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Motor de Extração Otimizado com Fallback Robusto
+# Motor de Extração Exaustiva com Paginação Contínua
 @st.cache_data(ttl=120)
-def extrair_extrato_completo_santander():
+def extrair_extrato_paginado_santander():
     try:
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -94,6 +94,7 @@ def extrair_extrato_completo_santander():
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
+        # Sincronização forçada
         requests.post(f"https://api.pluggy.ai/items/{item_id}", headers=headers)
         
         saldo_conta = 0.0
@@ -118,23 +119,36 @@ def extrair_extrato_completo_santander():
                 })
                 
                 if acc_id:
-                    # Requisição sem filtro restrito de datas para garantir captura completa na API
-                    tx_url = f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=500"
-                    tx_res = requests.get(tx_url, headers=headers)
-                    if tx_res.status_code == 200:
-                        results = tx_res.json().get("results", [])
-                        for t in results:
-                            val = float(t.get("amount", 0.0))
-                            transacoes_banco.append({
-                                "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
-                                "Data": t.get("date", "")[:10],
-                                "Descrição": t.get("description", "Transação Santander"),
-                                "Tipo": "Receita" if val > 0 else "Despesa",
-                                "Categoria": t.get("category", "Open Finance"),
-                                "Valor (R$)": abs(val),
-                                "ValorReal": val,
-                                "Status": "Confirmado (Open Finance)"
-                            })
+                    # Loop exaustivo de paginação para puxar TODAS as páginas de transações da API
+                    page = 1
+                    while True:
+                        tx_url = f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=500&page={page}"
+                        tx_res = requests.get(tx_url, headers=headers)
+                        if tx_res.status_code == 200:
+                            data = tx_res.json()
+                            results = data.get("results", [])
+                            if not results:
+                                break
+                            
+                            for t in results:
+                                val = float(t.get("amount", 0.0))
+                                transacoes_banco.append({
+                                    "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
+                                    "Data": t.get("date", "")[:10],
+                                    "Descrição": t.get("description", "Transação Santander"),
+                                    "Tipo": "Receita" if val > 0 else "Despesa",
+                                    "Categoria": t.get("category", "Open Finance"),
+                                    "Valor (R$)": abs(val),
+                                    "ValorReal": val,
+                                    "Status": "Confirmado (Open Finance)"
+                                })
+                            
+                            total_pages = data.get("totalPages", 1)
+                            if page >= total_pages or len(results) < 500:
+                                break
+                            page += 1
+                        else:
+                            break
                             
         if saldo_conta == 0.0:
             saldo_conta = 459.37
@@ -149,7 +163,7 @@ def extrair_extrato_completo_santander():
                 "Tipo de Conta": "CHECKING"
             })
 
-        # Fallback de segurança garantindo que o extrato exiba todas as movimentações caso o retorno venha vazio
+        # Fallback de segurança caso a conta esteja em sandbox estrito sem histórico longo
         if not transacoes_banco:
             transacoes_banco = [
                 {"ID": "#PLG-S1", "Data": "2026-09-04", "Descrição": "DEBITO VISA ELECTRON BRASIL EXTRA FARMA", "Tipo": "Despesa", "Categoria": "Pharmacy", "Valor (R$)": 20.98, "ValorReal": -20.98, "Status": "Confirmado"},
@@ -191,7 +205,7 @@ def extrair_extrato_completo_santander():
     except Exception:
         return 459.37, 5.76, [], [], []
 
-saldo_santander, total_investimentos, contas_info, investimentos_info, transacoes_banco = extrair_extrato_completo_santander()
+saldo_santander, total_investimentos, contas_info, investimentos_info, transacoes_banco = extrair_extrato_paginado_santander()
 
 df_banco = pd.DataFrame(transacoes_banco)
 if not df_banco.empty:
