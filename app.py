@@ -11,12 +11,10 @@ st.markdown("""
     .stApp {
         background-color: #07060d;
     }
-    /* Estilização da Sidebar */
     [data-testid="stSidebar"] {
         background-color: #0d0b16;
         border-right: 1px solid #1f1b3c;
     }
-    /* Cards de Métricas Estilo Enterprise */
     .metric-card {
         background: #110f1f;
         border: 1px solid #26214a;
@@ -37,7 +35,6 @@ st.markdown("""
         font-size: 24px;
         font-weight: 700;
     }
-    /* Ajuste de Títulos */
     h1, h2, h3 {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
@@ -90,7 +87,7 @@ if not df_original.empty:
     st.markdown("<p style='color: #6e688a; font-size: 13px; margin-top: 2px;'>Módulo de Monitoramento de Ativos e Fluxo de Caixa</p>", unsafe_allow_html=True)
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin-top: 10px; margin-bottom: 25px;'>", unsafe_allow_html=True)
 
-    # LINHA 1: KPIS PRINCIPAIS (ESTILO SYSTEM CARDS)
+    # LINHA 1: KPIS PRINCIPAIS
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.markdown(f"""
@@ -150,7 +147,7 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # GRÁFICOS ANALÍTICOS (LAYOUT LIMPO)
+    # GRÁFICOS ANALÍTICOS
     col_graf1, col_graf2 = st.columns([2, 1])
     
     with col_graf1:
@@ -164,8 +161,6 @@ if not df_original.empty:
                 font=dict(color='#8b85a3', size=11),
                 margin=dict(t=10, b=10, l=10, r=10)
             )
-            fig_bar.update_xaxis(showgrid=True, gridcolor='#1f1b3c')
-            fig_bar.update_yaxis(showgrid=False)
             fig_bar.update_traces(texttemplate='R$ %{text:,.2f}', textposition='outside', marker_color='#00f2fe')
             st.plotly_chart(fig_bar, use_container_width=True)
         else:
