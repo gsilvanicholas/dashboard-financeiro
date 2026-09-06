@@ -54,39 +54,29 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Função inteligente que busca os dados da Pluggy de forma 100% automatizada
+# Função Direta usando o Item ID Fixo
 @st.cache_data(ttl=300)
-def buscar_dados_pluggy_automatico():
+def buscar_dados_pluggy_direto():
     try:
-        if "pluggy" not in st.secrets:
-            return 0.0, 0.0, [], "Erro: Seção [pluggy] não encontrada."
+        if "pluggy" not in st.secrets or "item_id" not in st.secrets["pluggy"]:
+            return 0.0, 0.0, []
             
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
+        item_id = str(st.secrets["pluggy"]["item_id"]).strip()
         
-        # 1. Autenticação na API
+        # 1. Autenticação
         auth_res = requests.post("https://api.pluggy.ai/auth", json={
             "clientId": client_id,
             "clientSecret": client_secret
         })
         if auth_res.status_code != 200:
-            return 0.0, 0.0, [], f"Erro Auth: {auth_res.text}"
+            return 0.0, 0.0, []
             
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
-        # 2. Descobre o item_id conectado automaticamente na conta
-        itens_res = requests.get("https://api.pluggy.ai/items", headers=headers)
-        if itens_res.status_code != 200:
-            return 0.0, 0.0, [], f"Erro ao buscar items: {itens_res.text}"
-            
-        results_items = itens_res.json().get("results", [])
-        if not results_items:
-            return 0.0, 0.0, [], "Nenhuma instituição conectada encontrada na Pluggy."
-            
-        item_id = results_items[0].get("id")
-        
-        # 3. Buscar Contas
+        # 2. Buscar Contas do Item Específico
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         saldo_conta = 0.0
         if contas_res.status_code == 200:
@@ -95,7 +85,7 @@ def buscar_dados_pluggy_automatico():
                 bal = conta.get("balance") or conta.get("balances", {}).get("available", 0.0)
                 saldo_conta += float(bal)
                 
-        # 4. Buscar Investimentos
+        # 3. Buscar Investimentos
         inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
         saldo_investimentos = 0.0
         if inv_res.status_code == 200:
@@ -103,7 +93,7 @@ def buscar_dados_pluggy_automatico():
             for inv in investimentos:
                 saldo_investimentos += float(inv.get("balance", 0.0))
                 
-        # 5. Buscar Transações
+        # 4. Buscar Transações
         transacoes_res = requests.get(f"https://api.pluggy.ai/transactions?itemId={item_id}&pageSize=50", headers=headers)
         lista_transacoes = []
         if transacoes_res.status_code == 200:
@@ -123,12 +113,12 @@ def buscar_dados_pluggy_automatico():
                     "Status": "Confirmado (Santander)"
                 })
                 
-        return saldo_conta, saldo_investimentos, lista_transacoes, "Sucesso"
-    except Exception as e:
-        return 0.0, 0.0, [], f"Erro crítico: {str(e)}"
+        return saldo_conta, saldo_investimentos, lista_transacoes
+    except Exception:
+        return 0.0, 0.0, []
 
 df_original = carregar_dados_planilha()
-saldo_santander, total_investimentos, transacoes_pluggy, status_pluggy = buscar_dados_pluggy_automatico()
+saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_pluggy_direto()
 
 if not df_original.empty:
     # --- HEADER EXECUTIVO ---
