@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import requests
 import streamlit.components.v1 as components
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
