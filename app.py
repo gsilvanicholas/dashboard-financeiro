@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import requests
 import streamlit.components.v1 as components
+from pluggy_sdk import PluggyClient
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
 st.set_page_config(page_title="Controle Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
@@ -223,41 +223,27 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (WIDGET PLUGGY JS SDK) ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY SDK OFICIAL) ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
-    def gerar_connect_token():
+    def gerar_connect_token_sdk():
         try:
             client_id = st.secrets["pluggy"]["client_id"]
             client_secret = st.secrets["pluggy"]["client_secret"]
             
-            auth_res = requests.post("https://api.pluggy.ai/auth", json={
-                "clientId": client_id,
-                "clientSecret": client_secret
-            })
-            if auth_res.status_code != 200:
-                st.error(f"Erro Auth: {auth_res.text}")
-                return None
-                
-            api_key = auth_res.json().get("apiKey")
+            # Inicializa o cliente oficial da Pluggy
+            pluggy = PluggyClient(client_id=client_id, client_secret=client_secret)
             
-            token_res = requests.post("https://api.pluggy.ai/connect_token", 
-                headers={"X-API-KEY": api_key},
-                json={"options": {"clientUserId": "nicholas-exec-user"}}
-            )
-            if token_res.status_code != 200:
-                st.error(f"Erro Token: {token_res.text}")
-                return None
-                
-            return token_res.json().get("accessToken")
+            # Cria o connect token usando o método oficial do SDK
+            connect_token_obj = pluggy.create_connect_token(client_user_id="nicholas-exec-user")
+            return connect_token_obj.access_token
         except Exception as e:
-            st.error(f"Erro: {e}")
+            st.error(f"Erro ao gerar token oficial: {e}")
             return None
 
     if st.button("Conectar Conta do Santander"):
-        connect_token = gerar_connect_token()
+        connect_token = gerar_connect_token_sdk()
         if connect_token:
-            # SDK oficial do Pluggy Connect instanciado corretamente com o Connect Token gerado
             widget_code = f"""
             <!DOCTYPE html>
             <html>
