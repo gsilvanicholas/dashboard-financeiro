@@ -4,20 +4,20 @@ import plotly.express as px
 import requests
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
-st.set_page_config(page_title="Controle Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Controle Financeiro Executivo - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS Corporativo com Gradiente Elegante (Cinza Escuro para Preto) & Paleta Coesa
+# CSS Corporativo com Gradiente Elegante (Cinza Escuro para Preto) & Paleta Coesa Minimalista
 st.markdown("""
     <style>
     .stApp {
-        background: linear-gradient(135deg, #161b22 0%, #0d1117 50%, #010409 100%);
+        background: linear-gradient(135deg, #181d24 0%, #0d1117 50%, #010409 100%);
         color: #c9d1d9;
     }
     [data-testid="stSidebar"] {
         display: none;
     }
     .metric-card {
-        background: rgba(22, 27, 34, 0.75);
+        background: rgba(22, 27, 34, 0.85);
         border: 1px solid #30363d;
         padding: 20px;
         border-radius: 10px;
@@ -34,10 +34,10 @@ st.markdown("""
     }
     .metric-value {
         color: #f0f6fc;
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 700;
     }
-    h1, h2, h3, h4 {
+    h1, h2, h3, h4, h5 {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #f0f6fc;
     }
@@ -57,9 +57,9 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Função integrada para buscar extrato real e saldo via Pluggy
+# Função avançada para puxar Contas, Metadados, Investimentos e Transações completas da Pluggy
 @st.cache_data(ttl=300)
-def buscar_dados_pluggy_extrato():
+def buscar_dados_completos_pluggy():
     try:
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -70,7 +70,7 @@ def buscar_dados_pluggy_extrato():
             "clientSecret": client_secret
         })
         if auth_res.status_code != 200:
-            return 459.37, []
+            return 459.37, [], [], []
             
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
@@ -78,8 +78,10 @@ def buscar_dados_pluggy_extrato():
         # Força sincronização do item
         requests.post(f"https://api.pluggy.ai/items/{item_id}", headers=headers)
         
+        # 1. Metadados e Contas Bancárias Detalhadas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         saldo_conta = 0.0
+        detalhes_contas = []
         lista_transacoes = []
         
         if contas_res.status_code == 200:
@@ -89,15 +91,27 @@ def buscar_dados_pluggy_extrato():
                 saldo_conta += float(bal)
                 account_id = conta.get("id")
                 
+                detalhes_contas.append({
+                    "Banco": conta.get("bankData", {}).get("name", "Santander"),
+                    "Tipo": conta.get("type", "BANK"),
+                    "Subtipo": conta.get("subtype", "CHECKING_ACCOUNT"),
+                    "Número": conta.get("number", "N/A"),
+                    "Agência": conta.get("agency", "N/A"),
+                    "Saldo Atual (R$)": float(conta.get("balance", 0.0)),
+                    "Saldo Disponível (R$)": float(conta.get("balances", {}).get("available", 0.0) or 0.0),
+                    "Moeda": conta.get("currencyCode", "BRL")
+                })
+                
+                # 2. Transações Expandidas (Até 200 registros)
                 if account_id:
-                    trans_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={account_id}&pageSize=100", headers=headers)
+                    trans_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={account_id}&pageSize=200", headers=headers)
                     if trans_res.status_code == 200:
                         for t in trans_res.json().get("results", []):
                             val = float(t.get("amount", 0.0))
                             lista_transacoes.append({
-                                "ID": f"#PLG-{str(t.get('id', ''))[:5]}",
+                                "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
                                 "Data": t.get("date", "")[:10],
-                                "Descrição": t.get("description", "Transação Bancária"),
+                                "Descrição": t.get("description", "Transação Open Finance"),
                                 "Tipo": "Receita" if val > 0 else "Despesa",
                                 "Categoria": t.get("category", "Open Finance (Santander)"),
                                 "Valor (R$)": abs(val),
@@ -107,17 +121,36 @@ def buscar_dados_pluggy_extrato():
         if saldo_conta == 0.0:
             saldo_conta = 459.37
             
-        return saldo_conta, lista_transacoes
+        # 3. Investimentos Detalhados (CDBs)
+        inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
+        lista_investimentos = []
+        saldo_investimentos = 0.0
+        
+        if inv_res.status_code == 200:
+            investimentos = inv_res.json().get("results", [])
+            for inv in investimentos:
+                val_inv = float(inv.get("balance", 0.0))
+                saldo_investimentos += val_inv
+                lista_investimentos.append({
+                    "Ativo": inv.get("name", "CDB Santander"),
+                    "Tipo": inv.get("type", "FIXED_INCOME"),
+                    "Subtipo": inv.get("subtype", "CDB"),
+                    "Instituição": "Santander",
+                    "Saldo (R$)": val_inv,
+                    "Rentabilidade (%)": inv.get("annualRate", "N/A")
+                })
+                
+        return saldo_conta, saldo_investimentos, detalhes_contas, lista_investimentos, lista_transacoes
     except Exception:
-        return 459.37, []
+        return 459.37, 0.0, [], [], []
 
 df_original = carregar_dados_planilha()
-saldo_santander, transacoes_pluggy = buscar_dados_pluggy_extrato()
+saldo_santander, total_investimentos_pluggy, detalhes_contas, lista_investimentos, transacoes_pluggy = buscar_dados_completos_pluggy()
 
 if not df_original.empty:
     # --- HEADER EXECUTIVO ---
-    st.markdown("<h2 style='font-weight: 700; margin-bottom: 0; letter-spacing: 0.5px;'>CONTROLE FINANCEIRO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #8b949e; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER EXEC // MONITORAMENTO PATRIMONIAL & EXTRATO INTELIGENTE</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='font-weight: 700; margin-bottom: 0; letter-spacing: 0.5px;'>CONTROLE FINANCEIRO EXECUTIVO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #8b949e; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER OPEN FINANCE // MONITORAMENTO PATRIMONIAL & INTELIGÊNCIA DE DADOS</p>", unsafe_allow_html=True)
     st.markdown("<hr style='border: 1px solid #30363d; margin-top: 10px; margin-bottom: 25px;'>", unsafe_allow_html=True)
 
     # --- FILTROS NO TOPO ---
@@ -143,13 +176,11 @@ if not df_original.empty:
     # CÁLCULOS DE KPIS
     receitas = df[df['Tipo'] == 'Receita']['Valor (R$)'].sum()
     despesas = df[df['Tipo'] == 'Despesa']['Valor (R$)'].sum()
-    investimentos = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
-    saldo_livre = receitas - despesas - investimentos
-    
-    receita_total_base = df_original[df_original['Tipo'] == 'Receita']['Valor (R$)'].sum()
-    taxa_poupanca = (investimentos / receita_total_base * 100) if receita_total_base > 0 else 0
+    investimentos_planilha = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
+    patrimonio_total = investimentos_planilha + total_investimentos_pluggy
+    saldo_livre = receitas - despesas - patrimonio_total
 
-    # LINHA 1: KPIS PRINCIPAIS (Paleta Coesa Monocromática/Prata)
+    # LINHA 1: KPIS PRINCIPAIS (Paleta Minimalista Prata/Cinza)
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.markdown(f"""
@@ -175,8 +206,8 @@ if not df_original.empty:
     with c4:
         st.markdown(f"""
             <div class="metric-card" style="border-left: 4px solid #a0a7b0;">
-                <div class="metric-title">Patrimônio & Aportes</div>
-                <div class="metric-value">R$ {investimentos:,.2f}</div>
+                <div class="metric-title">Patrimônio & Investimentos</div>
+                <div class="metric-value">R$ {patrimonio_total:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
     with c5:
@@ -189,7 +220,7 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # GRÁFICOS ANALÍTICOS COM PALETA MONOCROMÁTICA SOFISTICADA
+    # GRÁFICOS ANALÍTICOS
     col_graf1, col_graf2 = st.columns([2, 1])
     
     with col_graf1:
@@ -226,18 +257,32 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #30363d; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- MÓDULO EXECUTIVO DE EXTRATO BANCÁRIO REAL & PLANILHA UNIFICADA ---
-    st.markdown("<h4 style='color: #f0f6fc; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Extrato Consolidado (Open Finance Santander + Lançamentos Planejados)</h4>", unsafe_allow_html=True)
+    # --- ABAS DE DETALHAMENTO AVANÇADO (CONTAS, INVESTIMENTOS E EXTRATOS) ---
+    st.markdown("<h4 style='color: #f0f6fc; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📊 Inteligência Open Finance & Extratos Detalhados</h4>", unsafe_allow_html=True)
     
-    # Prepara a tabela unificada
-    df_tabela = df_original[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
+    tab1, tab2, tab3 = st.tabs(["💳 Contas Bancárias (Origem do Saldo)", "📈 Investimentos (CDB Santander)", "📋 Extrato Unificado Completo"])
     
-    if transacoes_pluggy:
-        df_pluggy = pd.DataFrame(transacoes_pluggy)
-        df_tabela = pd.concat([df_tabela, df_pluggy], ignore_index=True)
-        
-    st.dataframe(
-        df_tabela, 
-        use_container_width=True,
-        hide_index=True
-    )
+    with tab1:
+        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Informações detalhadas das contas conectadas na Pluggy que compõem o saldo atual:</p>", unsafe_allow_html=True)
+        if detalhes_contas:
+            df_contas = pd.DataFrame(detalhes_contas)
+            st.dataframe(df_contas, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum metadado de conta adicional retornado pela API no momento.")
+            
+    with tab2:
+        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Ativos de renda fixa e investimentos vinculados ao Santander:</p>", unsafe_allow_html=True)
+        if lista_investimentos:
+            df_inv = pd.DataFrame(lista_investimentos)
+            st.dataframe(df_inv, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum investimento retornado pela API.")
+            
+    with tab3:
+        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Histórico completo de transações reais extraídas do Open Finance unificadas com a sua planilha:</p>", unsafe_allow_html=True)
+        df_tabela = df_original[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
+        if transacoes_pluggy:
+            df_pluggy = pd.DataFrame(transacoes_pluggy)
+            df_tabela = pd.concat([df_tabela, df_pluggy], ignore_index=True)
+            
+        st.dataframe(df_tabela, use_container_width=True, hide_index=True)
