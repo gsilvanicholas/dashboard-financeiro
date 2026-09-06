@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
+import streamlit.components.v1 as components
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
 st.set_page_config(page_title="Controle Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
@@ -222,10 +223,10 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (LINK DIRETO COM O TOKEN GERADO) ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (RENDERIZAÇÃO CORRETA DO WIDGET JS) ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
-    def obter_token_e_url():
+    def gerar_token_pluggy():
         try:
             client_id = str(st.secrets["pluggy"]["client_id"]).strip()
             client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -248,18 +249,43 @@ if not df_original.empty:
                 st.error(f"Erro Connect Token: {token_res.text}")
                 return None
                 
-            connect_token = token_res.json().get("accessToken")
-            # Monta a URL web oficial do Pluggy Connect utilizando o parâmetro correto 'connectToken'
-            return f"https://connect.pluggy.ai/?connectToken={connect_token}"
+            return token_res.json().get("accessToken")
         except Exception as e:
             st.error(f"Erro: {e}")
             return None
 
-    url_pluggy = obter_token_e_url()
-    if url_pluggy:
-        st.success("✅ Token gerado com sucesso!")
-        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Clique no botão abaixo para abrir a janela oficial de conexão do Santander:</p>", unsafe_allow_html=True)
-        st.link_button("🚀 Abrir Assistente Open Finance (Santander)", url_pluggy)
+    if st.button("Conectar Conta do Santander"):
+        connect_token = gerar_token_pluggy()
+        if connect_token:
+            # Renderiza o widget web utilizando o script oficial da Pluggy que consome o token com segurança
+            widget_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <script src="https://api.pluggy.ai/connect.js"></script>
+            </head>
+            <body style="background-color: #07060d; color: white; margin: 0; padding: 10px; font-family: sans-serif; text-align: center;">
+                <div id="pluggy-container" style="width: 100%; min-height: 500px; display: flex; justify-content: center; align-items: center;">
+                    <p style="color: #00f2fe;">Carregando assistente seguro do Santander...</p>
+                </div>
+                <script>
+                    const pluggyConnect = new PluggyConnect({{
+                        connectToken: "{connect_token}",
+                        onSuccess: (data) => {{
+                            document.getElementById("pluggy-container").innerHTML = "<h3 style='color: #00e676;'>✅ Conta Conectada com Sucesso!</h3><p>Item ID:</p><code style='background: #110f1f; padding: 10px; color: #00f2fe; font-size: 16px; border-radius: 6px;'>" + data.item.id + "</code>";
+                        }},
+                        onError: (error) => {{
+                            document.getElementById("pluggy-container").innerHTML = "<p style='color: #ff007f;'>Erro na conexão: " + JSON.stringify(error) + "</p>";
+                        }}
+                    }});
+                    pluggyConnect.init();
+                    pluggyConnect.open();
+                </script>
+            </body>
+            </html>
+            """
+            components.html(widget_html, height=600, scrolling=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
