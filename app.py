@@ -63,9 +63,9 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Extração completa da API Pluggy
+# Extração completa via itemId direto na API da Pluggy
 @st.cache_data(ttl=300)
-def extrair_dados_pluggy_full():
+def extrair_dados_pluggy_por_item():
     try:
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -76,7 +76,7 @@ def extrair_dados_pluggy_full():
             "clientSecret": client_secret
         })
         if auth_res.status_code != 200:
-            return 459.37, 5.76, [], [], [], 0.0, 0.0
+            return 459.37, 5.76, [], [], []
             
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
@@ -87,8 +87,6 @@ def extrair_dados_pluggy_full():
         saldo_conta = 0.0
         contas_info = []
         transacoes_banco = []
-        total_entradas = 0.0
-        total_saidas = 0.0
         
         # 1. Contas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
@@ -96,7 +94,6 @@ def extrair_dados_pluggy_full():
             for conta in contas_res.json().get("results", []):
                 bal = conta.get("balance") or conta.get("balances", {}).get("available", 0.0)
                 saldo_conta += float(bal)
-                acc_id = conta.get("id")
                 
                 contas_info.append({
                     "Instituição": "Banco Santander",
@@ -107,27 +104,6 @@ def extrair_dados_pluggy_full():
                     "Disponível (R$)": float(conta.get("balances", {}).get("available", 0.0) or 0.0)
                 })
                 
-                # Transações da conta
-                if acc_id:
-                    tx_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=500", headers=headers)
-                    if tx_res.status_code == 200:
-                        for t in tx_res.json().get("results", []):
-                            val = float(t.get("amount", 0.0))
-                            if val > 0:
-                                total_entradas += val
-                            else:
-                                total_saidas += abs(val)
-                                
-                            transacoes_banco.append({
-                                "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
-                                "Data": t.get("date", "")[:10],
-                                "Descrição": t.get("description", "Transação Bancária"),
-                                "Tipo": "Receita" if val > 0 else "Despesa",
-                                "Categoria": t.get("category", "Open Finance"),
-                                "Valor (R$)": abs(val),
-                                "Status": "Confirmado (Santander)"
-                            })
-                            
         if saldo_conta == 0.0:
             saldo_conta = 459.37
             
@@ -141,7 +117,22 @@ def extrair_dados_pluggy_full():
                 "Disponível (R$)": 459.37
             })
 
-        # 2. Investimentos
+        # 2. Transações Globais por itemId (Garante captura correta do extrato)
+        tx_res = requests.get(f"https://api.pluggy.ai/transactions?itemId={item_id}&pageSize=500", headers=headers)
+        if tx_res.status_code == 200:
+            for t in tx_res.json().get("results", []):
+                val = float(t.get("amount", 0.0))
+                transacoes_banco.append({
+                    "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
+                    "Data": t.get("date", "")[:10],
+                    "Descrição": t.get("description", "Transação Bancária"),
+                    "Tipo": "Receita" if val > 0 else "Despesa",
+                    "Categoria": t.get("category", "Open Finance"),
+                    "Valor (R$)": abs(val),
+                    "Status": "Confirmado (Santander)"
+                })
+
+        # 3. Investimentos
         inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
         investimentos_info = []
         total_inv = 0.0
@@ -167,12 +158,12 @@ def extrair_dados_pluggy_full():
                 "Rentabilidade": "100% CDI"
             })
             
-        return saldo_conta, total_inv, contas_info, investimentos_info, transacoes_banco, total_entradas, total_saidas
+        return saldo_conta, total_inv, contas_info, investimentos_info, transacoes_banco
     except Exception:
-        return 459.37, 5.76, [], [], [], 0.0, 0.0
+        return 459.37, 5.76, [], [], []
 
 df_original = carregar_dados_planilha()
-saldo_st, total_inv, contas_info, investimentos_info, transacoes_banco, entradas_banco, saidas_banco = extrair_dados_pluggy_full()
+saldo_st, total_inv, contas_info, investimentos_info, transacoes_banco = extrair_dados_pluggy_por_item()
 
 if not df_original.empty:
     # HEADER PRINCIPAL ESTILIZADO
@@ -183,7 +174,7 @@ if not df_original.empty:
         </div>
     """, unsafe_allow_html=True)
 
-    # FILTROS SUPERIORES RETRÁTEIS / ORGANIZADOS
+    # FILTROS SUPERIORES
     with st.container():
         f1, f2 = st.columns(2)
         tipos_disp = df_original['Tipo'].unique().tolist()
@@ -243,7 +234,7 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # GRÁFICOS ANALÍTICOS DE ALTO PADRÃO
+    # GRÁFICOS ANALÍTICOS
     g1, g2 = st.columns([2, 1])
     with g1:
         st.markdown("<h4 style='font-size: 15px; font-weight: 600;'>Análise de Custos por Categoria</h4>", unsafe_allow_html=True)
@@ -277,7 +268,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #30363d; margin: 30px 0;'>", unsafe_allow_html=True)
 
-    # --- SEÇÃO DE ABAS EXECUTIVAS ULTRA DETALHADAS ---
+    # --- CENTRAL DE DADOS OPEN FINANCE ---
     st.markdown("<h3 style='font-size: 16px; font-weight: 600; margin-bottom: 15px;'>⚡ Central de Dados Open Finance & Extratos</h3>", unsafe_allow_html=True)
     
     t_aba1, t_aba2, t_aba3, t_aba4 = st.tabs([
@@ -288,12 +279,12 @@ if not df_original.empty:
     ])
     
     with t_aba1:
-        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Histórico completo e transações detalhadas extraídas diretamente do seu Open Finance no Santander:</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='color: #8b949e; font-size: 13px;'>Histórico oficial extraído do Open Finance Santander ({len(transacoes_banco)} transações):</p>", unsafe_allow_html=True)
         if transacoes_banco:
             df_banco = pd.DataFrame(transacoes_banco)
             st.dataframe(df_banco, use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhuma transação bancária localizada via API.")
+            st.info("Nenhuma transação bancária retornada para este item.")
             
     with t_aba2:
         st.markdown("<p style='color: #8b949e; font-size: 13px;'>Informações cadastrais e saldos das contas bancárias sincronizadas:</p>", unsafe_allow_html=True)
