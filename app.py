@@ -54,18 +54,17 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Função robusta de diagnóstico e busca Pluggy
-@st.cache_data(ttl=600)
-def buscar_dados_pluggy_debug():
+# Função inteligente que busca os dados da Pluggy de forma 100% automatizada
+@st.cache_data(ttl=300)
+def buscar_dados_pluggy_automatico():
     try:
         if "pluggy" not in st.secrets:
-            return 0.0, 0.0, [], "Erro: Seção [pluggy] não encontrada nos secrets."
+            return 0.0, 0.0, [], "Erro: Seção [pluggy] não encontrada."
             
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
-        item_id = str(st.secrets["pluggy"]["item_id"]).strip()
         
-        # 1. Autenticação
+        # 1. Autenticação na API
         auth_res = requests.post("https://api.pluggy.ai/auth", json={
             "clientId": client_id,
             "clientSecret": client_secret
@@ -76,20 +75,27 @@ def buscar_dados_pluggy_debug():
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
-        # 2. Buscar Contas
+        # 2. Descobre o item_id conectado automaticamente na conta
+        itens_res = requests.get("https://api.pluggy.ai/items", headers=headers)
+        if itens_res.status_code != 200:
+            return 0.0, 0.0, [], f"Erro ao buscar items: {itens_res.text}"
+            
+        results_items = itens_res.json().get("results", [])
+        if not results_items:
+            return 0.0, 0.0, [], "Nenhuma instituição conectada encontrada na Pluggy."
+            
+        item_id = results_items[0].get("id")
+        
+        # 3. Buscar Contas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         saldo_conta = 0.0
-        msg_debug = f"Status Contas: {contas_res.status_code} | "
         if contas_res.status_code == 200:
-            contas_json = contas_res.json()
-            msg_debug += f"Resp Contas: {str(contas_json)[:200]} | "
-            contas = contas_json.get("results", [])
+            contas = contas_res.json().get("results", [])
             for conta in contas:
-                # Tenta pegar 'balance' ou 'availableBalance'
                 bal = conta.get("balance") or conta.get("balances", {}).get("available", 0.0)
                 saldo_conta += float(bal)
-        
-        # 3. Buscar Investimentos
+                
+        # 4. Buscar Investimentos
         inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
         saldo_investimentos = 0.0
         if inv_res.status_code == 200:
@@ -97,7 +103,7 @@ def buscar_dados_pluggy_debug():
             for inv in investimentos:
                 saldo_investimentos += float(inv.get("balance", 0.0))
                 
-        # 4. Buscar Transações
+        # 5. Buscar Transações
         transacoes_res = requests.get(f"https://api.pluggy.ai/transactions?itemId={item_id}&pageSize=50", headers=headers)
         lista_transacoes = []
         if transacoes_res.status_code == 200:
@@ -117,24 +123,18 @@ def buscar_dados_pluggy_debug():
                     "Status": "Confirmado (Santander)"
                 })
                 
-        return saldo_conta, saldo_investimentos, lista_transacoes, msg_debug
+        return saldo_conta, saldo_investimentos, lista_transacoes, "Sucesso"
     except Exception as e:
         return 0.0, 0.0, [], f"Erro crítico: {str(e)}"
 
 df_original = carregar_dados_planilha()
-saldo_santander, total_investimentos, transacoes_pluggy, debug_info = buscar_dados_pluggy_debug()
+saldo_santander, total_investimentos, transacoes_pluggy, status_pluggy = buscar_dados_pluggy_automatico()
 
 if not df_original.empty:
     # --- HEADER EXECUTIVO ---
     st.markdown("<h2 style='color: #f1f0f5; font-weight: 700; margin-bottom: 0; letter-spacing: 0.5px;'>CONTROLE FINANCEIRO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color: #00f2fe; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER EXEC // CORE DE MONITORAMENTO PATRIMONIAL (OPEN FINANCE ATIVO)</p>", unsafe_allow_html=True)
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
-
-    # --- CAIXA DE DIAGNÓSTICO TEMPORÁRIA ---
-    with st.expander("🔍 Diagnóstico da API Pluggy (Clique para expandir)", expanded=False):
-        st.write(f"**Debug Info:** {debug_info}")
-        st.write(f"**Transações Pluggy Encontradas:** {len(transacoes_pluggy)}")
-        st.write(f"**Saldo Calculado Conta:** R$ {saldo_santander}")
 
     # --- FILTROS NO TOPO ---
     with st.container():
