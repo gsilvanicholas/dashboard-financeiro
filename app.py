@@ -54,12 +54,12 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Função para buscar saldos e transações utilizando o Item ID fixo
-@st.cache_data(ttl=300)
-def buscar_dados_pluggy():
+# Função robusta de diagnóstico e busca Pluggy
+@st.cache_data(ttl=600)
+def buscar_dados_pluggy_debug():
     try:
         if "pluggy" not in st.secrets:
-            return 0.0, 0.0, []
+            return 0.0, 0.0, [], "Erro: Seção [pluggy] não encontrada nos secrets."
             
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -71,28 +71,33 @@ def buscar_dados_pluggy():
             "clientSecret": client_secret
         })
         if auth_res.status_code != 200:
-            return 0.0, 0.0, []
+            return 0.0, 0.0, [], f"Erro Auth: {auth_res.text}"
             
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
-        # 2. Buscar Contas (Accounts) do Item
+        # 2. Buscar Contas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         saldo_conta = 0.0
+        msg_debug = f"Status Contas: {contas_res.status_code} | "
         if contas_res.status_code == 200:
-            contas = contas_res.json().get("results", [])
+            contas_json = contas_res.json()
+            msg_debug += f"Resp Contas: {str(contas_json)[:200]} | "
+            contas = contas_json.get("results", [])
             for conta in contas:
-                saldo_conta += conta.get("balance", 0.0)
-                
-        # 3. Buscar Investimentos (Investments) do Item
+                # Tenta pegar 'balance' ou 'availableBalance'
+                bal = conta.get("balance") or conta.get("balances", {}).get("available", 0.0)
+                saldo_conta += float(bal)
+        
+        # 3. Buscar Investimentos
         inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
         saldo_investimentos = 0.0
         if inv_res.status_code == 200:
             investimentos = inv_res.json().get("results", [])
             for inv in investimentos:
-                saldo_investimentos += inv.get("balance", 0.0)
+                saldo_investimentos += float(inv.get("balance", 0.0))
                 
-        # 4. Buscar Transações (Transactions) do Item
+        # 4. Buscar Transações
         transacoes_res = requests.get(f"https://api.pluggy.ai/transactions?itemId={item_id}&pageSize=50", headers=headers)
         lista_transacoes = []
         if transacoes_res.status_code == 200:
@@ -100,10 +105,10 @@ def buscar_dados_pluggy():
             for t in trans_data:
                 data_formatada = t.get("date", "")[:10]
                 descricao = t.get("description", "Transação Santander")
-                valor = t.get("amount", 0.0)
+                valor = float(t.get("amount", 0.0))
                 tipo = "Receita" if valor > 0 else "Despesa"
                 lista_transacoes.append({
-                    "ID": f"#PLG-{t.get('id', '')[:5]}",
+                    "ID": f"#PLG-{str(t.get('id', ''))[:5]}",
                     "Data": data_formatada,
                     "Descrição": descricao,
                     "Tipo": tipo,
@@ -112,18 +117,24 @@ def buscar_dados_pluggy():
                     "Status": "Confirmado (Santander)"
                 })
                 
-        return saldo_conta, saldo_investimentos, lista_transacoes
-    except Exception:
-        return 0.0, 0.0, []
+        return saldo_conta, saldo_investimentos, lista_transacoes, msg_debug
+    except Exception as e:
+        return 0.0, 0.0, [], f"Erro crítico: {str(e)}"
 
 df_original = carregar_dados_planilha()
-saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_pluggy()
+saldo_santander, total_investimentos, transacoes_pluggy, debug_info = buscar_dados_pluggy_debug()
 
 if not df_original.empty:
     # --- HEADER EXECUTIVO ---
     st.markdown("<h2 style='color: #f1f0f5; font-weight: 700; margin-bottom: 0; letter-spacing: 0.5px;'>CONTROLE FINANCEIRO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
     st.markdown("<p style='color: #00f2fe; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER EXEC // CORE DE MONITORAMENTO PATRIMONIAL (OPEN FINANCE ATIVO)</p>", unsafe_allow_html=True)
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
+
+    # --- CAIXA DE DIAGNÓSTICO TEMPORÁRIA ---
+    with st.expander("🔍 Diagnóstico da API Pluggy (Clique para expandir)", expanded=False):
+        st.write(f"**Debug Info:** {debug_info}")
+        st.write(f"**Transações Pluggy Encontradas:** {len(transacoes_pluggy)}")
+        st.write(f"**Saldo Calculado Conta:** R$ {saldo_santander}")
 
     # --- FILTROS NO TOPO ---
     with st.container():
@@ -158,7 +169,7 @@ if not df_original.empty:
     total_despesas_qtd = len(df[df['Tipo'] == 'Despesa'])
     ticket_medio_despesa = (despesas / total_despesas_qtd) if total_despesas_qtd > 0 else 0
 
-    # LINHA 1: KPIS PRINCIPAIS (Com Saldo e Investimentos do Santander Integrados)
+    # LINHA 1: KPIS PRINCIPAIS
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.markdown(f"""
@@ -292,7 +303,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- TABELA DE TRANSAÇÕES (PLANILHA + EXTRATO DO SANTANDER) ---
+    # --- TABELA DE TRANSAÇÕES ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações (Planilha + Extrato Santander Open Finance)</h4>", unsafe_allow_html=True)
     
     df_tabela = df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
