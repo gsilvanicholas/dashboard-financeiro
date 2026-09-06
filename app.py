@@ -223,7 +223,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY) COM DEPURAÇÃO ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY) CORRIGIDO ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
     def gerar_connect_token():
@@ -235,48 +235,44 @@ if not df_original.empty:
                 "clientId": client_id,
                 "clientSecret": client_secret
             })
-            
             if auth_res.status_code != 200:
-                st.error(f"Erro Pluggy Auth ({auth_res.status_code}): {auth_res.text}")
+                st.error(f"Erro Auth: {auth_res.text}")
                 return None
                 
             api_key = auth_res.json().get("apiKey")
-            
             token_res = requests.post("https://api.pluggy.ai/connect_token", 
                 headers={"X-API-KEY": api_key},
                 json={"options": {"clientUserId": "nicholas-exec-user"}}
             )
-            
             if token_res.status_code != 200:
-                st.error(f"Erro Connect Token ({token_res.status_code}): {token_res.text}")
+                st.error(f"Erro Token: {token_res.text}")
                 return None
                 
             return token_res.json().get("accessToken")
         except Exception as e:
-            st.error(f"Exceção capturada: {e}")
+            st.error(f"Erro: {e}")
             return None
 
     if st.button("Conectar Conta do Santander"):
         connect_token = gerar_connect_token()
         if connect_token:
             pluggy_widget_html = f"""
+            <div id="pluggy-container" style="width: 100%; min-height: 500px; display: flex; justify-content: center; align-items: center;"></div>
             <script src="https://api.pluggy.ai/connect.js"></script>
-            <div id="pluggy-connect-container" style="color: white; font-family: sans-serif;"></div>
             <script>
                 const pluggyConnect = new PluggyConnect({{
                     connectToken: "{connect_token}",
                     onSuccess: (data) => {{
-                        const container = document.getElementById("pluggy-connect-container");
-                        container.innerHTML = "<h3 style='color: #00e676;'>✅ Conta Conectada com Sucesso!</h3><p>Copie o seu Item ID abaixo:</p><code style='background: #110f1f; padding: 10px; color: #00f2fe; font-size: 16px; display: block; border-radius: 6px;'>" + data.item.id + "</code>";
+                        document.getElementById("pluggy-container").innerHTML = "<div style='color: #00e676; font-family: sans-serif; text-align: center; padding: 20px;'><h3>✅ Conta Conectada com Sucesso!</h3><p>Item ID:</p><code style='background: #110f1f; padding: 10px; color: #00f2fe; font-size: 16px; border-radius: 6px;'>" + data.item.id + "</code></div>";
                     }},
                     onError: (error) => {{
-                        console.error("Erro na conexão:", error);
+                        console.error("Erro:", error);
                     }}
                 }});
                 pluggyConnect.init();
             </script>
             """
-            components.html(pluggy_widget_html, height=550)
+            components.html(pluggy_widget_html, height=550, scrolling=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
