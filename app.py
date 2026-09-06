@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import requests
+from datetime import datetime, timedelta
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="Terminal Financeiro Executivo - Conta", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Terminal Bancário Executivo", layout="wide", initial_sidebar_state="collapsed")
 
 # CSS CORPORATIVO DE ALTA DENSIDADE
 st.markdown("""
@@ -77,9 +77,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Motor Único Baseado 100% na Conta Bancária (Open Finance Santander / Pluggy)
-@st.cache_data(ttl=300)
-def extrair_dados_conta_bancaria():
+# Motor de Extração Profunda em Tempo Real (Open Finance Santander / Pluggy)
+@st.cache_data(ttl=120)
+def extrair_extrato_completo_santander():
     try:
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -95,13 +95,18 @@ def extrair_dados_conta_bancaria():
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
+        # Dispara sincronização forçada do item no Open Finance
         requests.post(f"https://api.pluggy.ai/items/{item_id}", headers=headers)
         
         saldo_conta = 0.0
         contas_info = []
         transacoes_banco = []
         
-        # 1. Contas Correntes
+        # Define janela de busca ampla (últimos 180 dias até hoje) para garantir extrato completo
+        data_to = datetime.now().strftime('%Y-%m-%d')
+        data_from = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+        
+        # 1. Varredura de Contas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         if contas_res.status_code == 200:
             for conta in contas_res.json().get("results", []):
@@ -114,13 +119,17 @@ def extrair_dados_conta_bancaria():
                     "Agência": conta.get("agency", "0001"),
                     "Conta": conta.get("number", "00001047095-6"),
                     "Saldo Atual (R$)": float(conta.get("balance", 0.0)),
-                    "Disponível (R$)": float(conta.get("balances", {}).get("available", 0.0) or 0.0)
+                    "Disponível (R$)": float(conta.get("balances", {}).get("available", 0.0) or 0.0),
+                    "Tipo de Conta": conta.get("type", "CHECKING")
                 })
                 
                 if acc_id:
-                    tx_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=500", headers=headers)
+                    # Requisição com paginação máxima e range de datas ampliado
+                    tx_url = f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=500&from={data_from}&to={data_to}"
+                    tx_res = requests.get(tx_url, headers=headers)
                     if tx_res.status_code == 200:
-                        for t in tx_res.json().get("results", []):
+                        results = tx_res.json().get("results", [])
+                        for t in results:
                             val = float(t.get("amount", 0.0))
                             transacoes_banco.append({
                                 "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
@@ -130,7 +139,7 @@ def extrair_dados_conta_bancaria():
                                 "Categoria": t.get("category", "Open Finance"),
                                 "Valor (R$)": abs(val),
                                 "ValorReal": val,
-                                "Status": "Confirmado (Santander)"
+                                "Status": "Confirmado (Open Finance)"
                             })
                             
         if saldo_conta == 0.0:
@@ -142,22 +151,11 @@ def extrair_dados_conta_bancaria():
                 "Agência": "0001",
                 "Conta": "00001047095-6",
                 "Saldo Atual (R$)": 459.37,
-                "Disponível (R$)": 459.37
+                "Disponível (R$)": 459.37,
+                "Tipo de Conta": "CHECKING"
             })
 
-        # Fallback de segurança com dados reais consolidados caso a API precise
-        if not transacoes_banco:
-            transacoes_banco = [
-                {"ID": "#PLG-S1", "Data": "2026-09-04", "Descrição": "DEBITO VISA ELECTRON BRASIL EXTRA FARMA", "Tipo": "Despesa", "Categoria": "Pharmacy", "Valor (R$)": 20.98, "ValorReal": -20.98, "Status": "Confirmado"},
-                {"ID": "#PLG-S2", "Data": "2026-09-04", "Descrição": "PIX RECEBIDO ISABELLY DE LIMA OLIVEIRA", "Tipo": "Receita", "Categoria": "Transfer - PIX", "Valor (R$)": 58.75, "ValorReal": 58.75, "Status": "Confirmado"},
-                {"ID": "#PLG-S3", "Data": "2026-09-03", "Descrição": "PIX ENVIADO IFOOD COM AGENCIA DE REST", "Tipo": "Despesa", "Categoria": "Food delivery", "Valor (R$)": 92.48, "ValorReal": -92.48, "Status": "Confirmado"},
-                {"ID": "#PLG-S4", "Data": "2026-09-02", "Descrição": "DEBITO VISA ELECTRON BRASIL REVET", "Tipo": "Despesa", "Categoria": "Shopping", "Valor (R$)": 39.00, "ValorReal": -39.00, "Status": "Confirmado"},
-                {"ID": "#PLG-S5", "Data": "2026-09-02", "Descrição": "PIX ENVIADO LANCHONETE DELICIA DA AND", "Tipo": "Despesa", "Categoria": "Eating out", "Valor (R$)": 65.00, "ValorReal": -65.00, "Status": "Confirmado"},
-                {"ID": "#PLG-S6", "Data": "2026-09-02", "Descrição": "PAGAMENTO DE BOLETO OUTROS BANCOS CARTÕES", "Tipo": "Despesa", "Categoria": "Bank Slip", "Valor (R$)": 1856.14, "ValorReal": -1856.14, "Status": "Confirmado"},
-                {"ID": "#PLG-S7", "Data": "2026-09-01", "Descrição": "PIX ENVIADO TELEFONICA BRASIL S A", "Tipo": "Despesa", "Categoria": "Telecommunications", "Valor (R$)": 400.97, "ValorReal": -400.97, "Status": "Confirmado"}
-            ]
-
-        # 2. Investimentos (CDB)
+        # 2. Busca de Investimentos (CDB)
         inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
         investimentos_info = []
         total_inv = 0.0
@@ -187,12 +185,13 @@ def extrair_dados_conta_bancaria():
     except Exception:
         return 459.37, 5.76, [], [], []
 
-saldo_santander, total_investimentos, contas_info, investimentos_info, transacoes_banco = extrair_dados_conta_bancaria()
+saldo_santander, total_investimentos, contas_info, investimentos_info, transacoes_banco = extrair_extrato_completo_santander()
 
-# Converte transações em DataFrame para cálculos automáticos
 df_banco = pd.DataFrame(transacoes_banco)
+if not df_banco.empty:
+    df_banco = df_banco.sort_values(by="Data", ascending=False)
 
-# HEADER EXECUTIVO BASEADO NA CONTA
+# HEADER EXECUTIVO
 st.markdown("""
     <div class="terminal-header">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -207,12 +206,12 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# CÁLCULOS EXCLUSIVOS DO EXTRATO BANCÁRIO
+# CÁLCULOS DINÂMICOS DO EXTRATO
 receitas_banco = df_banco[df_banco['Tipo'] == 'Receita']['Valor (R$)'].sum() if not df_banco.empty else 0.0
 despesas_banco = df_banco[df_banco['Tipo'] == 'Despesa']['Valor (R$)'].sum() if not df_banco.empty else 0.0
 patrimonio_total = saldo_santander + total_investimentos
 
-# LINHA DE KPIS DA CONTA
+# KPIS DA CONTA
 k1, k2, k3, k4, k5 = st.columns(5)
 with k1:
     st.markdown(f"""
@@ -224,14 +223,14 @@ with k1:
 with k2:
     st.markdown(f"""
         <div class="metric-card" style="border-left: 3px solid #10b981;">
-            <div class="metric-title">Entradas (Período)</div>
+            <div class="metric-title">Entradas (Extrato)</div>
             <div class="metric-value" style="color: #34d399;">R$ {receitas_banco:,.2f}</div>
         </div>
     """, unsafe_allow_html=True)
 with k3:
     st.markdown(f"""
         <div class="metric-card" style="border-left: 3px solid #ef4444;">
-            <div class="metric-title">Saídas (Período)</div>
+            <div class="metric-title">Saídas (Extrato)</div>
             <div class="metric-value" style="color: #f87171;">R$ {despesas_banco:,.2f}</div>
         </div>
     """, unsafe_allow_html=True)
@@ -252,17 +251,17 @@ with k5:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ABAS DO TERMINAL BANCÁRIO
+# ABAS DO TERMINAL
 tab_fluxo, tab_extrato, tab_ativos, tab_metadados = st.tabs([
     "📊 Fluxo de Caixa da Conta", 
-    "🏦 Extrato Bancário Completo", 
+    f"🏦 Extrato Bancário Completo ({len(df_banco)} registros)", 
     "📈 Investimentos CDB", 
     "💳 Metadados da Conta"
 ])
 
 with tab_fluxo:
     st.markdown("<h3 style='font-size: 16px; font-weight: 800; color: #ffffff;'>Fluxo de Caixa Baseado na Conta</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #8b949e; font-size: 11px; margin-bottom: 20px;'>Movimentações reais extraídas diretamente do extrato bancário do Santander.</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color: #8b949e; font-size: 11px; margin-bottom: 20px;'>Exibindo todas as {len(df_banco)} movimentações reais sincronizadas do extrato bancário.</p>", unsafe_allow_html=True)
     
     col_f1, col_f2 = st.columns([1.2, 1])
     with col_f1:
@@ -272,41 +271,42 @@ with tab_fluxo:
                 <div style="color: #f87171; font-size: 22px; font-weight: 800; margin-top: 4px;">R$ {despesas_banco:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-        st.text("Open Finance / Pagamentos")
-        st.progress(0.70)
-        st.text("Transferências & PIX")
-        st.progress(0.30)
     with col_f2:
         st.markdown(f"""
             <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 18px; height: 100%;">
-                <div style="color: #34d399; font-size: 10px; font-weight: 700; text-transform: uppercase;">TOTAL DE ENTRADAS</div>
+                <div style="color: #34d399; font-size: 10px; font-weight: 700; text-transform: uppercase;">TOTAL DE ENTRADAS NO PERÍODO</div>
                 <div style="color: #34d399; font-size: 22px; font-weight: 800; margin-top: 4px;">R$ {receitas_banco:,.2f}</div>
-                <p style="color: #64748b; font-size: 11px; margin-top: 10px;">Créditos e recebimentos via PIX confirmados.</p>
             </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<h4 style='font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 25px; margin-bottom: 12px;'>Todas as Transações da Conta</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='font-size: 14px; font-weight: 700; color: #ffffff; margin-top: 25px; margin-bottom: 12px;'>Linha do Tempo de Transações</h4>", unsafe_allow_html=True)
     
-    for _, tx in df_banco.iterrows():
-        is_rec = tx['Tipo'] == 'Receita'
-        val_c = "#34d399" if is_rec else "#f87171"
-        sinal = "+" if is_rec else "-"
-        
-        st.markdown(f"""
-            <div class="tx-row">
-                <div>
-                    <div style="color: #f8fafc; font-weight: 700; font-size: 12px;">{tx['Descrição']}</div>
-                    <div style="color: #64748b; font-size: 10px; margin-top: 2px;">{tx['ID']} &bull; Categoria: {tx['Categoria']} &bull; Data: {tx['Data']}</div>
+    if not df_banco.empty:
+        for _, tx in df_banco.iterrows():
+            is_rec = tx['Tipo'] == 'Receita'
+            val_c = "#34d399" if is_rec else "#f87171"
+            sinal = "+" if is_rec else "-"
+            
+            st.markdown(f"""
+                <div class="tx-row">
+                    <div>
+                        <div style="color: #f8fafc; font-weight: 700; font-size: 12px;">{tx['Descrição']}</div>
+                        <div style="color: #64748b; font-size: 10px; margin-top: 2px;">{tx['ID']} &bull; Categoria: {tx['Categoria']} &bull; Data: {tx['Data']}</div>
+                    </div>
+                    <div style="color: {val_c}; font-weight: 800; font-family: monospace; font-size: 14px;">
+                        {sinal}R$ {tx['Valor (R$)']:,.2f}
+                    </div>
                 </div>
-                <div style="color: {val_c}; font-weight: 800; font-family: monospace; font-size: 14px;">
-                    {sinal}R$ {tx['Valor (R$)']:,.2f}
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+    else:
+        st.info("Nenhuma transação encontrada no período.")
 
 with tab_extrato:
-    st.markdown("<p style='color: #94a3b8; font-size: 11px;'>Extrato oficial sincronizado em tempo real:</p>", unsafe_allow_html=True)
-    st.dataframe(df_banco, use_container_width=True, hide_index=True)
+    st.markdown(f"<p style='color: #94a3b8; font-size: 11px;'>Extrato oficial completo ({len(df_banco)} registros sincronizados):</p>", unsafe_allow_html=True)
+    if not df_banco.empty:
+        st.dataframe(df_banco[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], use_container_width=True, hide_index=True)
+    else:
+        st.info("Extrato vazio.")
         
 with tab_ativos:
     st.markdown("<p style='color: #94a3b8; font-size: 11px;'>Ativos de renda fixa custodiados:</p>", unsafe_allow_html=True)
