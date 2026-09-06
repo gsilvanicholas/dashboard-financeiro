@@ -54,14 +54,14 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Função inteligente que busca contas e transações globalmente na API da Pluggy
+# Função definitiva para capturar contas, investimentos e transações do Open Finance
 @st.cache_data(ttl=300)
-def buscar_dados_pluggy_global():
+def buscar_dados_santander_pluggy():
     try:
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
         
-        # 1. Autenticação
+        # 1. Autenticação na API Pluggy
         auth_res = requests.post("https://api.pluggy.ai/auth", json={
             "clientId": client_id,
             "clientSecret": client_secret
@@ -72,19 +72,20 @@ def buscar_dados_pluggy_global():
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
-        # 2. Buscar todas as Contas globais da API
-        contas_res = requests.get("https://api.pluggy.ai/accounts", headers=headers)
         saldo_conta = 0.0
         lista_transacoes = []
         
+        # 2. Buscar Contas Bancárias Globalmente
+        contas_res = requests.get("https://api.pluggy.ai/accounts", headers=headers)
         if contas_res.status_code == 200:
             contas = contas_res.json().get("results", [])
             for conta in contas:
+                # Soma os saldos das contas encontradas (ex: Santander)
                 bal = conta.get("balance") or conta.get("balances", {}).get("available", 0.0)
                 saldo_conta += float(bal)
                 account_id = conta.get("id")
                 
-                # 3. Buscar transações específicas desta conta usando o accountId correto
+                # 3. Buscar transações vinculadas a esta conta
                 if account_id:
                     trans_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={account_id}&pageSize=50", headers=headers)
                     if trans_res.status_code == 200:
@@ -103,8 +104,8 @@ def buscar_dados_pluggy_global():
                                 "Valor (R$)": abs(valor),
                                 "Status": "Confirmado (Santander)"
                             })
-                
-        # 4. Buscar Investimentos globais
+                            
+        # 4. Buscar Investimentos (CDB Santander)
         inv_res = requests.get("https://api.pluggy.ai/investments", headers=headers)
         saldo_investimentos = 0.0
         if inv_res.status_code == 200:
@@ -117,7 +118,7 @@ def buscar_dados_pluggy_global():
         return 0.0, 0.0, []
 
 df_original = carregar_dados_planilha()
-saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_pluggy_global()
+saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_santander_pluggy()
 
 if not df_original.empty:
     # --- HEADER EXECUTIVO ---
@@ -158,7 +159,7 @@ if not df_original.empty:
     total_despesas_qtd = len(df[df['Tipo'] == 'Despesa'])
     ticket_medio_despesa = (despesas / total_despesas_qtd) if total_despesas_qtd > 0 else 0
 
-    # LINHA 1: KPIS PRINCIPAIS
+    # LINHA 1: KPIS PRINCIPAIS (Com o saldo real do Santander puxado da API)
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.markdown(f"""
@@ -292,7 +293,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- TABELA DE TRANSAÇÕES ---
+    # --- TABELA DE TRANSAÇÕES (PLANILHA + EXTRATO DO SANTANDER) ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações (Planilha + Extrato Santander Open Finance)</h4>", unsafe_allow_html=True)
     
     df_tabela = df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
@@ -306,4 +307,3 @@ if not df_original.empty:
         use_container_width=True,
         hide_index=True
     )
-    
