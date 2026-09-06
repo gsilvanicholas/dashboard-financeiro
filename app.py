@@ -3,10 +3,10 @@ import pandas as pd
 import plotly.express as px
 import requests
 
-# 1. CONFIGURAÇÃO DA PÁGINA (Layout Wide Profissional)
+# 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Terminal Financeiro Executivo", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS CORPORATIVO DE ALTA DENSIDADE DE DADOS (Dark Minimalista & Foco em Informação)
+# CSS CORPORATIVO DE ALTA DENSIDADE DE DADOS
 st.markdown("""
     <style>
     .stApp {
@@ -15,7 +15,6 @@ st.markdown("""
     }
     [data-testid="stSidebar"] { display: none; }
     
-    /* Header do Terminal */
     .terminal-header {
         background: #0f172a;
         border: 1px solid #1e293b;
@@ -24,8 +23,6 @@ st.markdown("""
         border-radius: 10px;
         margin-bottom: 20px;
     }
-    
-    /* Cards de Métricas Estilo Bloomberg / Fintech */
     .metric-card {
         background: #0f172a;
         border: 1px solid #1e293b;
@@ -44,12 +41,10 @@ st.markdown("""
     }
     .metric-value {
         color: #f8fafc;
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 800;
         font-family: monospace;
     }
-    
-    /* Abas Estilizadas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: transparent;
@@ -84,7 +79,6 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar planilha: {e}")
         return pd.DataFrame()
 
-# Motor de Extração Profunda Open Finance (Santander)
 @st.cache_data(ttl=300)
 def extrair_dados_santander_pro():
     try:
@@ -108,7 +102,7 @@ def extrair_dados_santander_pro():
         contas_info = []
         transacoes_banco = []
         
-        # 1. Contas Correntes
+        # 1. Contas Correntes e Extrato Profundo
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         if contas_res.status_code == 200:
             for conta in contas_res.json().get("results", []):
@@ -125,7 +119,7 @@ def extrair_dados_santander_pro():
                 })
                 
                 if acc_id:
-                    tx_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=200", headers=headers)
+                    tx_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=500", headers=headers)
                     if tx_res.status_code == 200:
                         for t in tx_res.json().get("results", []):
                             val = float(t.get("amount", 0.0))
@@ -152,6 +146,21 @@ def extrair_dados_santander_pro():
             })
 
         # Fallback de Transações se vazio
+        if not transacoes_banco:
+            trans_global = requests.get(f"https://api.pluggy.ai/transactions?itemId={item_id}&pageSize=500", headers=headers)
+            if trans_global.status_code == 200:
+                for t in trans_global.json().get("results", []):
+                    val = float(t.get("amount", 0.0))
+                    transacoes_banco.append({
+                        "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
+                        "Data": t.get("date", "")[:10],
+                        "Descrição": t.get("description", "Transação Santander"),
+                        "Tipo": "Receita" if val > 0 else "Despesa",
+                        "Categoria": t.get("category", "Open Finance"),
+                        "Valor (R$)": abs(val),
+                        "Status": "Confirmado (Santander)"
+                    })
+
         if not transacoes_banco:
             transacoes_banco = [
                 {"ID": "#PLG-SANT1", "Data": "2026-09-04", "Descrição": "DEBITO VISA ELECTRON BRASIL EXTRA FARMA", "Tipo": "Despesa", "Categoria": "Pharmacy", "Valor (R$)": 20.98, "Status": "Confirmado (Santander)"},
@@ -224,8 +233,9 @@ if not df_original.empty:
     # CÁLCULOS DE KPIS FINANCEIROS
     receitas = df[df['Tipo'] == 'Receita']['Valor (R$)'].sum()
     despesas = df[df['Tipo'] == 'Despesa']['Valor (R$)'].sum()
-    investimentos_base = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum() + total_investimentos
-    saldo_livre = receitas - despesas - investimentos_base
+    investimentos_base = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
+    patrimonio_total = investimentos_base + total_investimentos
+    saldo_livre = receitas - despesas - patrimonio_total
     
     receita_total_base = df_original[df_original['Tipo'] == 'Receita']['Valor (R$)'].sum()
     taxa_poupanca = (investimentos_base / receita_total_base * 100) if receita_total_base > 0 else 0
@@ -236,8 +246,8 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # LINHA 1: KPIS PRINCIPAIS (5 COLUNAS)
-    c1, c2, c3, c4, c5 = st.columns(5)
+    # LINHA 1: KPIS PRINCIPAIS (6 COLUNAS - Incluindo CDB Dedicado)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
         st.markdown(f"""
             <div class="metric-card" style="border-left: 3px solid #3b82f6;">
@@ -262,11 +272,18 @@ if not df_original.empty:
     with c4:
         st.markdown(f"""
             <div class="metric-card" style="border-left: 3px solid #8b5cf6;">
-                <div class="metric-title">Patrimônio & CDB</div>
-                <div class="metric-value" style="color: #a78bfa;">R$ {investimentos_base:,.2f}</div>
+                <div class="metric-title">Investimento CDB</div>
+                <div class="metric-value" style="color: #a78bfa;">R$ {total_investimentos:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
     with c5:
+        st.markdown(f"""
+            <div class="metric-card" style="border-left: 3px solid #06b6d4;">
+                <div class="metric-title">Patrimônio Total</div>
+                <div class="metric-value" style="color: #22d3ee;">R$ {patrimonio_total:,.2f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with c6:
         cor_sld = "#34d399" if saldo_livre >= 0 else "#f87171"
         st.markdown(f"""
             <div class="metric-card" style="border-left: 3px solid {cor_sld};">
@@ -275,7 +292,7 @@ if not df_original.empty:
             </div>
         """, unsafe_allow_html=True)
 
-    # LINHA 2: MÉTRICAS DE SAÚDE FINANCEIRA (4 COLUNAS)
+    # LINHA 2: MÉTRICAS DE SAÚDE FINANCEIRA & CONTAS PENDENTES DETALHADAS
     s1, s2, s3, s4 = st.columns(4)
     with s1:
         st.markdown(f"""
@@ -299,17 +316,23 @@ if not df_original.empty:
             </div>
         """, unsafe_allow_html=True)
     with s4:
-        pendentes_qtd = len(df_original[df_original['Status'].str.contains("Não Pago", case=False, na=False)])
+        df_pendentes = df_original[df_original['Status'].str.contains("Não Pago", case=False, na=False)]
+        valor_pendente_total = df_pendentes['Valor (R$)'].sum() if not df_pendentes.empty else 0.0
         st.markdown(f"""
-            <div class="metric-card" style="padding: 12px 16px;">
-                <div class="metric-title">Contas Pendentes</div>
-                <div class="metric-value" style="font-size: 16px; color: #fbbf24;">{pendentes_qtd} registros</div>
+            <div class="metric-card" style="padding: 12px 16px; border-left: 3px solid #fbbf24;">
+                <div class="metric-title">Contas Pendentes ({len(df_pendentes)})</div>
+                <div class="metric-value" style="font-size: 15px; color: #fbbf24;">R$ {valor_pendente_total:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
 
+    # EXIBIÇÃO DETALHADA DAS CONTAS PENDENTES EM UM EXPANDER RÁPIDO
+    if not df_pendentes.empty:
+        with st.expander(f"⚠️ Detalhamento das Contas Pendentes (Total: R$ {valor_pendente_total:,.2f})", expanded=True):
+            st.dataframe(df_pendentes[['ID', 'Data', 'Descrição', 'Categoria', 'Valor (R$)']], use_container_width=True, hide_index=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # GRÁFICOS ANALÍTICOS DE ALTA PRECISÃO
+    # GRÁFICOS ANALÍTICOS
     g1, g2 = st.columns([1.5, 1])
     with g1:
         st.markdown("<h4 style='font-size: 14px; font-weight: 700; color: #cbd5e1; margin-bottom: 8px;'>Análise de Custos por Categoria</h4>", unsafe_allow_html=True)
