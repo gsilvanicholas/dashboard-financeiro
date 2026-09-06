@@ -3,41 +3,47 @@ import pandas as pd
 import plotly.express as px
 import requests
 
-# 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
-st.set_page_config(page_title="Controle Financeiro Executivo - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
+# 1. CONFIGURAÇÃO DA PÁGINA (Layout Wide Profissional)
+st.set_page_config(page_title="Terminal Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS Corporativo com Gradiente Elegante & Paleta Minimalista Profissional
+# CSS Corporativo Avançado (Dark Minimalista & Gradiente Profundo)
 st.markdown("""
     <style>
     .stApp {
-        background: linear-gradient(135deg, #181d24 0%, #0d1117 50%, #010409 100%);
-        color: #c9d1d9;
+        background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+        color: #e6edf3;
     }
     [data-testid="stSidebar"] {
         display: none;
     }
-    .metric-card {
-        background: rgba(22, 27, 34, 0.85);
-        border: 1px solid #30363d;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-        backdrop-filter: blur(10px);
+    .main-header {
+        background: rgba(22, 27, 34, 0.9);
+        border-bottom: 1px solid #30363d;
+        padding: 20px 30px;
+        border-radius: 12px;
+        margin-bottom: 25px;
     }
-    .metric-title {
+    .card-exec {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .card-title {
         color: #8b949e;
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 6px;
+        letter-spacing: 1.2px;
+        margin-bottom: 8px;
     }
-    .metric-value {
+    .card-value {
         color: #f0f6fc;
-        font-size: 22px;
+        font-size: 24px;
         font-weight: 700;
     }
-    h1, h2, h3, h4, h5 {
+    h1, h2, h3, h4 {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: #f0f6fc;
     }
@@ -57,9 +63,9 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Função altamente robusta para extração completa de dados da Pluggy
+# Extração completa da API Pluggy
 @st.cache_data(ttl=300)
-def buscar_dados_completos_pluggy():
+def extrair_dados_pluggy_full():
     try:
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -75,251 +81,234 @@ def buscar_dados_completos_pluggy():
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
-        # Sincroniza o item para forçar atualização
+        # Sincroniza o item
         requests.post(f"https://api.pluggy.ai/items/{item_id}", headers=headers)
         
         saldo_conta = 0.0
-        detalhes_contas = []
-        lista_transacoes_banco = []
-        total_entradas_banco = 0.0
-        total_saidas_banco = 0.0
+        contas_info = []
+        transacoes_banco = []
+        total_entradas = 0.0
+        total_saidas = 0.0
         
-        # 1. Contas por Item ID
+        # 1. Contas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         if contas_res.status_code == 200:
-            contas = contas_res.json().get("results", [])
-            for conta in contas:
+            for conta in contas_res.json().get("results", []):
                 bal = conta.get("balance") or conta.get("balances", {}).get("available", 0.0)
                 saldo_conta += float(bal)
-                account_id = conta.get("id")
+                acc_id = conta.get("id")
                 
-                detalhes_contas.append({
-                    "Instituição": "Banco Santander (Brasil) S.A.",
-                    "Tipo de Conta": conta.get("type", "BANK"),
-                    "Subtipo": conta.get("subtype", "CHECKING_ACCOUNT"),
+                contas_info.append({
+                    "Instituição": "Banco Santander",
+                    "Tipo": conta.get("type", "BANK"),
                     "Agência": conta.get("agency", "0001"),
-                    "Número da Conta": conta.get("number", "00001047095-6"),
+                    "Conta": conta.get("number", "00001047095-6"),
                     "Saldo Atual (R$)": float(conta.get("balance", 0.0)),
-                    "Saldo Disponível (R$)": float(conta.get("balances", {}).get("available", 0.0) or 0.0),
-                    "Moeda": conta.get("currencyCode", "BRL")
+                    "Disponível (R$)": float(conta.get("balances", {}).get("available", 0.0) or 0.0)
                 })
                 
-                # Transações Bancárias Detalhadas (Puxando lote máximo)
-                if account_id:
-                    trans_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={account_id}&pageSize=500", headers=headers)
-                    if trans_res.status_code == 200:
-                        for t in trans_res.json().get("results", []):
+                # Transações da conta
+                if acc_id:
+                    tx_res = requests.get(f"https://api.pluggy.ai/transactions?accountId={acc_id}&pageSize=500", headers=headers)
+                    if tx_res.status_code == 200:
+                        for t in tx_res.json().get("results", []):
                             val = float(t.get("amount", 0.0))
                             if val > 0:
-                                total_entradas_banco += val
+                                total_entradas += val
                             else:
-                                total_saidas_banco += abs(val)
+                                total_saidas += abs(val)
                                 
-                            lista_transacoes_banco.append({
+                            transacoes_banco.append({
                                 "ID": f"#PLG-{str(t.get('id', ''))[:6]}",
                                 "Data": t.get("date", "")[:10],
-                                "Descrição": t.get("description", "Transação Santander"),
+                                "Descrição": t.get("description", "Transação Bancária"),
                                 "Tipo": "Receita" if val > 0 else "Despesa",
-                                "Categoria": t.get("category", "Open Finance (Santander)"),
+                                "Categoria": t.get("category", "Open Finance"),
                                 "Valor (R$)": abs(val),
-                                "Status": "Confirmado (Open Finance)"
+                                "Status": "Confirmado (Santander)"
                             })
                             
         if saldo_conta == 0.0:
             saldo_conta = 459.37
             
-        if not detalhes_contas:
-            detalhes_contas.append({
-                "Instituição": "Banco Santander (Brasil) S.A.",
-                "Tipo de Conta": "BANK",
-                "Subtipo": "CHECKING_ACCOUNT",
+        if not contas_info:
+            contas_info.append({
+                "Instituição": "Banco Santander",
+                "Tipo": "BANK",
                 "Agência": "0001",
-                "Número da Conta": "00001047095-6",
+                "Conta": "00001047095-6",
                 "Saldo Atual (R$)": 459.37,
-                "Saldo Disponível (R$)": 459.37,
-                "Moeda": "BRL"
+                "Disponível (R$)": 459.37
             })
-            
-        # 2. Investimentos por Item ID
+
+        # 2. Investimentos
         inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
-        lista_investimentos = []
-        total_investimentos = 0.0
-        
+        investimentos_info = []
+        total_inv = 0.0
         if inv_res.status_code == 200:
-            investimentos = inv_res.json().get("results", [])
-            for inv in investimentos:
-                val_inv = float(inv.get("balance", 0.0))
-                total_investimentos += val_inv
-                lista_investimentos.append({
-                    "Ativo / Produto": inv.get("name", "CDB - BANCO SANTANDER (BRASIL) S.A."),
+            for inv in inv_res.json().get("results", []):
+                val_i = float(inv.get("balance", 0.0))
+                total_inv += val_i
+                investimentos_info.append({
+                    "Ativo": inv.get("name", "CDB Santander"),
                     "Tipo": inv.get("type", "FIXED_INCOME"),
-                    "Subtipo": inv.get("subtype", "CDB"),
                     "Instituição": "Santander",
-                    "Saldo Aplicado (R$)": val_inv,
+                    "Valor Aplicado (R$)": val_i,
                     "Rentabilidade": inv.get("annualRate", "100% CDI")
                 })
                 
-        if total_investimentos == 0.0:
-            total_investimentos = 5.76
-            lista_investimentos.append({
-                "Ativo / Produto": "CDB - BANCO SANTANDER (BRASIL) S.A. (Consolidado)",
+        if total_inv == 0.0:
+            total_inv = 5.76
+            investimentos_info.append({
+                "Ativo": "CDB - BANCO SANTANDER (Consolidado)",
                 "Tipo": "FIXED_INCOME",
-                "Subtipo": "CDB",
                 "Instituição": "Santander",
-                "Saldo Aplicado (R$)": 5.76,
+                "Valor Aplicado (R$)": 5.76,
                 "Rentabilidade": "100% CDI"
             })
             
-        return saldo_conta, total_investimentos, detalhes_contas, lista_investimentos, lista_transacoes_banco, total_entradas_banco, total_saidas_banco
+        return saldo_conta, total_inv, contas_info, investimentos_info, transacoes_banco, total_entradas, total_saidas
     except Exception:
         return 459.37, 5.76, [], [], [], 0.0, 0.0
 
 df_original = carregar_dados_planilha()
-saldo_santander, total_investimentos_pluggy, detalhes_contas, lista_investimentos, transacoes_pluggy, entradas_banco, saidas_banco = buscar_dados_completos_pluggy()
+saldo_st, total_inv, contas_info, investimentos_info, transacoes_banco, entradas_banco, saidas_banco = extrair_dados_pluggy_full()
 
 if not df_original.empty:
-    # --- HEADER EXECUTIVO ---
-    st.markdown("<h2 style='font-weight: 700; margin-bottom: 0; letter-spacing: 0.5px;'>CONTROLE FINANCEIRO EXECUTIVO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #8b949e; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER OPEN FINANCE // MONITORAMENTO PATRIMONIAL & INTELIGÊNCIA DE DADOS</p>", unsafe_allow_html=True)
-    st.markdown("<hr style='border: 1px solid #30363d; margin-top: 10px; margin-bottom: 25px;'>", unsafe_allow_html=True)
+    # HEADER PRINCIPAL ESTILIZADO
+    st.markdown("""
+        <div class="main-header">
+            <h2 style="margin:0; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">TERMINAL FINANCEIRO EXECUTIVO</h2>
+            <p style="margin:4px 0 0 0; color: #8b949e; font-size: 13px;">NICHOLAS HENRIQUE GOMES DA SILVA // OPEN FINANCE SANTANDER CONECTADO</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-    # --- FILTROS NO TOPO ---
+    # FILTROS SUPERIORES RETRÁTEIS / ORGANIZADOS
     with st.container():
-        st.markdown("<p style='color: #c9d1d9; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>🔍 PAINEL DE FILTRAGEM RÁPIDA</p>", unsafe_allow_html=True)
-        f_col1, f_col2 = st.columns(2)
-        
-        tipos_disponiveis = df_original['Tipo'].unique().tolist()
-        categorias_disponiveis = df_original['Categoria'].unique().tolist()
-        
-        with f_col1:
-            tipo_selecionado = st.multiselect("Filtrar por Tipo de Transação", options=tipos_disponiveis, default=tipos_disponiveis)
-        with f_col2:
-            categoria_selecionada = st.multiselect("Filtrar por Categoria", options=categorias_disponiveis, default=categorias_disponiveis)
+        f1, f2 = st.columns(2)
+        tipos_disp = df_original['Tipo'].unique().tolist()
+        cats_disp = df_original['Categoria'].unique().tolist()
+        with f1:
+            tipo_sel = st.multiselect("Filtrar por Tipo de Transação", options=tipos_disp, default=tipos_disp)
+        with f2:
+            cat_sel = st.multiselect("Filtrar por Categoria", options=cats_disp, default=cats_disp)
 
-    df = df_original[
-        (df_original['Tipo'].isin(tipo_selecionado)) & 
-        (df_original['Categoria'].isin(categoria_selecionada))
-    ]
+    df_filtrado = df_original[(df_original['Tipo'].isin(tipo_sel)) & (df_original['Categoria'].isin(cat_sel))]
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # CÁLCULOS DE KPIS
-    receitas = df[df['Tipo'] == 'Receita']['Valor (R$)'].sum()
-    despesas = df[df['Tipo'] == 'Despesa']['Valor (R$)'].sum()
-    investimentos_planilha = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
-    patrimonio_total = investimentos_planilha + total_investimentos_pluggy
+    # CÁLCULOS EXECUTIVOS
+    receitas = df_filtrado[df_filtrado['Tipo'] == 'Receita']['Valor (R$)'].sum()
+    despesas = df_filtrado[df_filtrado['Tipo'] == 'Despesa']['Valor (R$)'].sum()
+    patrimonio_total = df_filtrado[df_filtrado['Tipo'] == 'Investimento']['Valor (R$)'].sum() + total_inv
     saldo_livre = receitas - despesas - patrimonio_total
 
-    # LINHA 1: KPIS PRINCIPAIS
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
+    # LINHA 1: CARDS DE KPIS PRINCIPAIS
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1:
         st.markdown(f"""
-            <div class="metric-card" style="border-left: 4px solid #8b949e;">
-                <div class="metric-title">Conta Santander</div>
-                <div class="metric-value">R$ {saldo_santander:,.2f}</div>
+            <div class="card-exec" style="border-left: 4px solid #8b949e;">
+                <div class="card-title">Conta Santander</div>
+                <div class="card-value">R$ {saldo_st:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c2:
+    with k2:
         st.markdown(f"""
-            <div class="metric-card" style="border-left: 4px solid #c9d1d9;">
-                <div class="metric-title">Renda Total Bruta</div>
-                <div class="metric-value">R$ {receitas:,.2f}</div>
+            <div class="card-exec" style="border-left: 4px solid #c9d1d9;">
+                <div class="card-title">Renda Total Bruta</div>
+                <div class="card-value">R$ {receitas:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c3:
+    with k3:
         st.markdown(f"""
-            <div class="metric-card" style="border-left: 4px solid #6e7681;">
-                <div class="metric-title">Despesas Totais</div>
-                <div class="metric-value">R$ {despesas:,.2f}</div>
+            <div class="card-exec" style="border-left: 4px solid #6e7681;">
+                <div class="card-title">Despesas Totais</div>
+                <div class="card-value">R$ {despesas:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c4:
+    with k4:
         st.markdown(f"""
-            <div class="metric-card" style="border-left: 4px solid #a0a7b0;">
-                <div class="metric-title">Patrimônio & Investimentos</div>
-                <div class="metric-value">R$ {patrimonio_total:,.2f}</div>
+            <div class="card-exec" style="border-left: 4px solid #a0a7b0;">
+                <div class="card-title">Patrimônio & Invest.</div>
+                <div class="card-value">R$ {patrimonio_total:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c5:
+    with k5:
         st.markdown(f"""
-            <div class="metric-card" style="border-left: 4px solid #f0f6fc;">
-                <div class="metric-title">Saldo Livre Operacional</div>
-                <div class="metric-value">R$ {saldo_livre:,.2f}</div>
+            <div class="card-exec" style="border-left: 4px solid #f0f6fc;">
+                <div class="card-title">Saldo Operacional</div>
+                <div class="card-value">R$ {saldo_livre:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # GRÁFICOS ANALÍTICOS
-    col_graf1, col_graf2 = st.columns([2, 1])
-    
-    with col_graf1:
-        st.markdown("<h4 style='color: #c9d1d9; font-size: 15px; font-weight: 600;'>Análise de Custos por Categoria</h4>", unsafe_allow_html=True)
-        df_despesas = df[df['Tipo'] == 'Despesa'].groupby('Categoria')['Valor (R$)'].sum().reset_index()
-        if not df_despesas.empty:
-            fig_bar = px.bar(df_despesas, x='Valor (R$)', y='Categoria', orientation='h', text='Valor (R$)',
+    # GRÁFICOS ANALÍTICOS DE ALTO PADRÃO
+    g1, g2 = st.columns([2, 1])
+    with g1:
+        st.markdown("<h4 style='font-size: 15px; font-weight: 600;'>Análise de Custos por Categoria</h4>", unsafe_allow_html=True)
+        df_esp = df_filtrado[df_filtrado['Tipo'] == 'Despesa'].groupby('Categoria')['Valor (R$)'].sum().reset_index()
+        if not df_esp.empty:
+            fig_bar = px.bar(df_esp, x='Valor (R$)', y='Categoria', orientation='h', text='Valor (R$)',
                              color_discrete_sequence=['#8b949e'])
             fig_bar.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', 
-                font=dict(color='#8b949e', size=11),
-                margin=dict(t=10, b=10, l=10, r=10)
+                plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#8b949e', size=11), margin=dict(t=10, b=10, l=10, r=10)
             )
             fig_bar.update_traces(texttemplate='R$ %{text:,.2f}', textposition='outside', marker_color='#8b949e')
             st.plotly_chart(fig_bar, use_container_width=True)
         else:
             st.info("Sem dados para exibir.")
 
-    with col_graf2:
-        st.markdown("<h4 style='color: #c9d1d9; font-size: 15px; font-weight: 600;'>Composição de Saídas</h4>", unsafe_allow_html=True)
-        df_composicao = df[df['Tipo'].isin(['Despesa', 'Investimento'])].groupby('Categoria')['Valor (R$)'].sum().reset_index()
-        if not df_composicao.empty:
-            fig_pie = px.pie(df_composicao, values='Valor (R$)', names='Categoria', hole=0.65,
+    with g2:
+        st.markdown("<h4 style='font-size: 15px; font-weight: 600;'>Composição de Saídas</h4>", unsafe_allow_html=True)
+        df_comp = df_filtrado[df_filtrado['Tipo'].isin(['Despesa', 'Investimento'])].groupby('Categoria')['Valor (R$)'].sum().reset_index()
+        if not df_comp.empty:
+            fig_pie = px.pie(df_comp, values='Valor (R$)', names='Categoria', hole=0.65,
                              color_discrete_sequence=['#f0f6fc', '#c9d1d9', '#8b949e', '#6e7681', '#30363d'])
             fig_pie.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', 
-                font=dict(color='#8b949e', size=11),
-                margin=dict(t=10, b=10, l=10, r=10),
+                plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#8b949e', size=11), margin=dict(t=10, b=10, l=10, r=10),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
             )
             st.plotly_chart(fig_pie, use_container_width=True)
         else:
             st.info("Sem dados para o gráfico.")
 
-    st.markdown("<hr style='border: 1px solid #30363d; margin: 25px 0;'>", unsafe_allow_html=True)
+    st.markdown("<hr style='border: 1px solid #30363d; margin: 30px 0;'>", unsafe_allow_html=True)
+
+    # --- SEÇÃO DE ABAS EXECUTIVAS ULTRA DETALHADAS ---
+    st.markdown("<h3 style='font-size: 16px; font-weight: 600; margin-bottom: 15px;'>⚡ Central de Dados Open Finance & Extratos</h3>", unsafe_allow_html=True)
     
-    # --- ABAS DE DETALHAMENTO AVANÇADO (CONTAS, INVESTIMENTOS E EXTRATOS COMPLETOS) ---
-    st.markdown("<h4 style='color: #f0f6fc; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📊 Inteligência Open Finance & Extratos Detalhados</h4>", unsafe_allow_html=True)
-    
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "💳 Contas Bancárias", 
-        "📈 Investimentos (CDB)", 
-        "🏦 Extrato Open Finance Puro (Santander)", 
-        "📋 Extrato Unificado (Planilha + Banco)"
+    t_aba1, t_aba2, t_aba3, t_aba4 = st.tabs([
+        "🏦 Extrato Bancário Real (Santander)", 
+        "💳 Contas & Metadados", 
+        "📈 Carteira de Investimentos (CDB)", 
+        "📋 Extrato Unificado (Planejado + Real)"
     ])
     
-    with tab1:
-        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Detalhes operacionais e saldos das contas conectadas:</p>", unsafe_allow_html=True)
-        df_contas = pd.DataFrame(detalhes_contas)
-        st.dataframe(df_contas, use_container_width=True, hide_index=True)
-            
-    with tab2:
-        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Ativos de Renda Fixa e CDBs custodiados no Santander:</p>", unsafe_allow_html=True)
-        df_inv = pd.DataFrame(lista_investimentos)
-        st.dataframe(df_inv, use_container_width=True, hide_index=True)
-            
-    with tab3:
-        st.markdown(f"<p style='color: #8b949e; font-size: 13px;'>Extrato bancário oficial direto do Open Finance Santander ({len(transacoes_pluggy)} transações encontradas):</p>", unsafe_allow_html=True)
-        if transacoes_pluggy:
-            df_banco_puro = pd.DataFrame(transacoes_pluggy)
-            st.dataframe(df_banco_puro, use_container_width=True, hide_index=True)
+    with t_aba1:
+        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Histórico completo e transações detalhadas extraídas diretamente do seu Open Finance no Santander:</p>", unsafe_allow_html=True)
+        if transacoes_banco:
+            df_banco = pd.DataFrame(transacoes_banco)
+            st.dataframe(df_banco, use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhuma transação bancária retornada pela API neste momento.")
+            st.info("Nenhuma transação bancária localizada via API.")
             
-    with tab4:
-        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Histórico unificado entre as transações reais do banco e o seu planejamento em planilha:</p>", unsafe_allow_html=True)
-        df_tabela = df_original[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
-        if transacoes_pluggy:
-            df_pluggy = pd.DataFrame(transacoes_pluggy)
-            df_tabela = pd.concat([df_tabela, df_pluggy], ignore_index=True)
-            
-        st.dataframe(df_tabela, use_container_width=True, hide_index=True)
+    with t_aba2:
+        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Informações cadastrais e saldos das contas bancárias sincronizadas:</p>", unsafe_allow_html=True)
+        df_contas = pd.DataFrame(contas_info)
+        st.dataframe(df_contas, use_container_width=True, hide_index=True)
+        
+    with t_aba3:
+        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Ativos de Renda Fixa e CDBs custodiados na instituição financeira:</p>", unsafe_allow_html=True)
+        df_invs = pd.DataFrame(investimentos_info)
+        st.dataframe(df_invs, use_container_width=True, hide_index=True)
+        
+    with t_aba4:
+        st.markdown("<p style='color: #8b949e; font-size: 13px;'>Visão unificada cruzando as transações reais da sua conta com o planejamento da planilha:</p>", unsafe_allow_html=True)
+        df_unif = df_original[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
+        if transacoes_banco:
+            df_p = pd.DataFrame(transacoes_banco)
+            df_unif = pd.concat([df_unif, df_p], ignore_index=True)
+        st.dataframe(df_unif, use_container_width=True, hide_index=True)
