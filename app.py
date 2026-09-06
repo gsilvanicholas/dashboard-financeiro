@@ -6,7 +6,7 @@ import requests
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="Terminal Financeiro Executivo", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS CORPORATIVO DE ALTA DENSIDADE DE DADOS & ESTILO PLUGGY FLUXO
+# CSS CORPORATIVO DE ALTA DENSIDADE DE DADOS
 st.markdown("""
     <style>
     .stApp {
@@ -45,7 +45,6 @@ st.markdown("""
         font-weight: 800;
         font-family: monospace;
     }
-    /* Estilo de Transações Estilo Pluggy Fluxo */
     .pluggy-tx-box {
         background: #0f172a;
         border: 1px solid #1e293b;
@@ -315,7 +314,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1e293b; margin: 25px 0;'>", unsafe_allow_html=True)
 
-    # --- ABAS PRINCIPAIS (INCLUINDO O NOVO FLUXO DE CAIXA IDÊNTICO AO PRINT) ---
+    # --- ABAS PRINCIPAIS ---
     tab_fluxo, tab_extrato, tab_ativos, tab_metadados, tab_unificado = st.tabs([
         "📊 Fluxo de Caixa (Pluggy Style)", 
         "🏦 Extrato Bancário Real", 
@@ -328,7 +327,6 @@ if not df_original.empty:
         st.markdown("<h3 style='font-size: 18px; font-weight: 800; color: #ffffff;'>Fluxo de Caixa</h3>", unsafe_allow_html=True)
         st.markdown("<p style='color: #8b949e; font-size: 12px; margin-bottom: 20px;'>Despesas, receitas e movimentações das suas contas.</p>", unsafe_allow_html=True)
         
-        # Blocos Superiores do Fluxo (Despesas Categorizadas com Barras & Despesas Futuras)
         fx1, fx2 = st.columns([1.3, 1])
         with fx1:
             st.markdown("""
@@ -357,7 +355,6 @@ if not df_original.empty:
 
         st.markdown("<h4 style='font-size: 15px; font-weight: 700; color: #ffffff; margin-top: 25px; margin-bottom: 15px;'>Setembro de 2026</h4>", unsafe_allow_html=True)
         
-        # Listagem de Transações Exata ao Print da Pluggy
         for tx in transacoes_banco:
             is_pos = tx['ValorReal'] > 0
             val_color = "#34d399" if is_pos else "#f87171"
