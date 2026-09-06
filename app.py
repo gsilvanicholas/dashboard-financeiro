@@ -33,10 +33,11 @@ def carregar_dados_planilha():
     df['Valor (R$)'] = pd.to_numeric(df['Valor (R$)'], errors='coerce')
     return df
 
-# Função com rastreamento explícito de erros da API
-def buscar_dados_com_erro_visivel():
+# Função final com o parâmetro itemId obrigatório correto
+def buscar_dados_pluggy_correto():
     client_id = str(st.secrets["pluggy"]["client_id"]).strip()
     client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
+    item_id = "6b12297a-5846-4732-8c6f-171717697388"
     
     # 1. Autenticação
     auth_res = requests.post("https://api.pluggy.ai/auth", json={
@@ -44,16 +45,14 @@ def buscar_dados_com_erro_visivel():
         "clientSecret": client_secret
     })
     if auth_res.status_code != 200:
-        st.error(f"Erro de Autenticação Pluggy ({auth_res.status_code}): {auth_res.text}")
         return 0.0, 0.0, []
         
     api_key = auth_res.json().get("apiKey")
     headers = {"X-API-KEY": api_key}
     
-    # 2. Contas
-    contas_res = requests.get("https://api.pluggy.ai/accounts", headers=headers)
+    # 2. Contas vinculadas ao itemId correto
+    contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
     if contas_res.status_code != 200:
-        st.error(f"Erro ao buscar contas ({contas_res.status_code}): {contas_res.text}")
         return 0.0, 0.0, []
         
     saldo_conta = 0.0
@@ -84,8 +83,8 @@ def buscar_dados_com_erro_visivel():
                         "Status": "Confirmado (Santander)"
                     })
                     
-    # 3. Investimentos
-    inv_res = requests.get("https://api.pluggy.ai/investments", headers=headers)
+    # 3. Investimentos vinculados ao itemId
+    inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
     saldo_investimentos = 0.0
     if inv_res.status_code == 200:
         investimentos = inv_res.json().get("results", [])
@@ -95,7 +94,7 @@ def buscar_dados_com_erro_visivel():
     return saldo_conta, saldo_investimentos, lista_transacoes
 
 df_original = carregar_dados_planilha()
-saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_com_erro_visivel()
+saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_pluggy_correto()
 
 if not df_original.empty:
     st.markdown("<h2 style='color: #f1f0f5; font-weight: 700; margin-bottom: 0;'>CONTROLE FINANCEIRO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
