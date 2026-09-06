@@ -222,10 +222,10 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (LINK DIRETO SEGURO) ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE COM GERADOR DE TOKEN SEGURO ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
-    def obter_url_conexao():
+    def gerar_token_pluggy():
         try:
             client_id = str(st.secrets["pluggy"]["client_id"]).strip()
             client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -248,17 +248,19 @@ if not df_original.empty:
                 st.error(f"Erro Connect Token: {token_res.text}")
                 return None
                 
-            connect_token = token_res.json().get("accessToken")
-            # Endpoint direto oficial da Pluggy para painéis externos baseados em URL limpa
-            return f"https://connect.pluggy.ai/?token={connect_token}"
+            return token_res.json().get("accessToken")
         except Exception as e:
             st.error(f"Erro: {e}")
             return None
 
-    url_pluggy = obter_url_conexao()
-    if url_pluggy:
-        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Clique no botão abaixo para abrir a janela segura de autenticação do Santander em uma aba dedicada:</p>", unsafe_allow_html=True)
-        st.link_button("🚀 Abrir Assistente Open Finance (Santander)", url_pluggy)
+    connect_token = gerar_token_pluggy()
+    if connect_token:
+        st.success("✅ Conexão com a API da Pluggy estabelecida com sucesso!")
+        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Para testar a conexão bancária com o Santander sem erros de URL, utilize o ambiente oficial de testes e demonstração da Pluggy:</p>", unsafe_allow_html=True)
+        st.link_button("🚀 Abrir Sandbox de Demonstração Pluggy", "https://meu.pluggy.ai/")
+        
+        with st.expander("Ver Connect Token gerado para depuração"):
+            st.code(connect_token, language="text")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
