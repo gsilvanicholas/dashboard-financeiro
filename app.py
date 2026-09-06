@@ -11,7 +11,6 @@ st.markdown("""
     .stApp {
         background-color: #07060d;
     }
-    /* Ocultar barra lateral antiga */
     [data-testid="stSidebar"] {
         display: none;
     }
@@ -62,7 +61,7 @@ if not df_original.empty:
     st.markdown("<p style='color: #00f2fe; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER EXEC // CORE DE MONITORAMENTO PATRIMONIAL</p>", unsafe_allow_html=True)
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
-    # --- FILTROS NO TOPO (Design Horizontal Limpo) ---
+    # --- FILTROS NO TOPO ---
     with st.container():
         st.markdown("<p style='color: #b197fc; font-size: 13px; font-weight: 600; margin-bottom: 5px;'>🔍 PAINEL DE FILTRAGEM RÁPIDA</p>", unsafe_allow_html=True)
         f_col1, f_col2 = st.columns(2)
@@ -82,7 +81,7 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # CÁLCULOS DE KPIs
+    # CÁLCULOS DE KPIS
     receitas = df[df['Tipo'] == 'Receita']['Valor (R$)'].sum()
     despesas = df[df['Tipo'] == 'Despesa']['Valor (R$)'].sum()
     investimentos = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
@@ -162,6 +161,30 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # --- NOVO MÓDULO: PROGRESSO DA RESERVA DE EMERGÊNCIA & ALERTAS ---
+    p_col1, p_col2 = st.columns([2, 1])
+    with p_col1:
+        st.markdown("<h4 style='color: #c9c5d4; font-size: 15px; font-weight: 600;'>🎯 Progreso da Meta: Reserva de Emergência</h4>", unsafe_allow_html=True)
+        # Meta simulada de R$ 15.000,00 para a reserva
+        meta_reserva = 15000.0
+        total_reserva_atual = df_original[(df_original['Categoria'] == 'Reserva') | (df_original['Categoria'] == 'Reserva de Emergência')]['Valor (R$)'].sum()
+        progresso_val = min(total_reserva_atual / meta_reserva, 1.0)
+        st.progress(progresso_val)
+        st.markdown(f"<p style='color: #8b85a3; font-size: 12px;'>Acumulado atual: <b>R$ {total_reserva_atual:,.2f}</b> de uma meta de <b>R$ {meta_reserva:,.2f}</b> ({progresso_val*100:.1f}%)</p>", unsafe_allow_html=True)
+
+    with p_col2:
+        st.markdown("<h4 style='color: #c9c5d4; font-size: 15px; font-weight: 600;'>⚠️ Alertas Pendentes</h4>", unsafe_allow_html=True)
+        pendentes = df_original[df_original['Status'].str.contains("Não Pago", case=False, na=False)]
+        total_pendente = pendentes['Valor (R$)'].sum()
+        st.markdown(f"""
+            <div style="background: #19122c; border: 1px solid #ff007f; padding: 10px; border-radius: 6px;">
+                <span style="color: #ff007f; font-weight: bold;">{len(pendentes)} contas pendentes</span><br>
+                <span style="color: #ffffff; font-size: 14px;">Total: R$ {total_pendente:,.2f}</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     # GRÁFICOS ANALÍTICOS
     col_graf1, col_graf2 = st.columns([2, 1])
     
@@ -199,7 +222,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- TABELA DE GASTOS EM DESTAQUE ---
+    # --- TABELA DE GASTOS EM DESTAQUE EXTREMO ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=True)
     st.dataframe(
         df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
