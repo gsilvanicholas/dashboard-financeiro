@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit.components.v1 as components
 
 # 1. CONFIGURAÇÃO DA PÁGINA (Layout Profissional Wide)
 st.set_page_config(page_title="Controle Financeiro - Nicholas Henrique", layout="wide", initial_sidebar_state="collapsed")
@@ -161,11 +162,10 @@ if not df_original.empty:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- NOVO MÓDULO: PROGRESSO DA RESERVA DE EMERGÊNCIA & ALERTAS ---
+    # --- MÓDULO: PROGRESSO DA RESERVA DE EMERGÊNCIA & ALERTAS ---
     p_col1, p_col2 = st.columns([2, 1])
     with p_col1:
-        st.markdown("<h4 style='color: #c9c5d4; font-size: 15px; font-weight: 600;'>🎯 Progreso da Meta: Reserva de Emergência</h4>", unsafe_allow_html=True)
-        # Meta simulada de R$ 15.000,00 para a reserva
+        st.markdown("<h4 style='color: #c9c5d4; font-size: 15px; font-weight: 600;'>🎯 Progresso da Meta: Reserva de Emergência</h4>", unsafe_allow_html=True)
         meta_reserva = 15000.0
         total_reserva_atual = df_original[(df_original['Categoria'] == 'Reserva') | (df_original['Categoria'] == 'Reserva de Emergência')]['Valor (R$)'].sum()
         progresso_val = min(total_reserva_atual / meta_reserva, 1.0)
@@ -222,62 +222,58 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY) ---
+    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
+    
+    def gerar_connect_token():
+        try:
+            client_id = st.secrets["pluggy"]["client_id"]
+            client_secret = st.secrets["pluggy"]["client_secret"]
+            
+            auth_res = requests.post("https://api.pluggy.ai/auth", json={
+                "clientId": client_id,
+                "clientSecret": client_secret
+            })
+            api_key = auth_res.json().get("apiKey")
+            
+            token_res = requests.post("https://api.pluggy.ai/connect_token", 
+                headers={"X-API-KEY": api_key},
+                json={"options": {"clientUserId": "nicholas-exec-user"}}
+            )
+            return token_res.json().get("accessToken")
+        except Exception as e:
+            return None
+
+    if st.button("Conectar Conta do Santander"):
+        connect_token = gerar_connect_token()
+        if connect_token:
+            pluggy_widget_html = f"""
+            <script src="https://api.pluggy.ai/connect.js"></script>
+            <div id="pluggy-connect-container" style="color: white; font-family: sans-serif;"></div>
+            <script>
+                const pluggyConnect = new PluggyConnect({{
+                    connectToken: "{connect_token}",
+                    onSuccess: (data) => {{
+                        const container = document.getElementById("pluggy-connect-container");
+                        container.innerHTML = "<h3 style='color: #00e676;'>✅ Conta Conectada com Sucesso!</h3><p>Copie o seu Item ID abaixo:</p><code style='background: #110f1f; padding: 10px; color: #00f2fe; font-size: 16px; display: block; border-radius: 6px;'>" + data.item.id + "</code>";
+                    }},
+                    onError: (error) => {{
+                        console.error("Erro na conexão:", error);
+                    }}
+                }});
+                pluggyConnect.init();
+            </script>
+            """
+            components.html(pluggy_widget_html, height=550)
+        else:
+            st.error("Erro ao gerar o token de conexão com a Pluggy.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     # --- TABELA DE GASTOS EM DESTAQUE EXTREMO ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=True)
     st.dataframe(
         df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
         use_container_width=True,
         hide_index=True
-    )import streamlit as st
-import requests
-import streamlit.components.v1 as components
-
-# Função para gerar o Connect Token na API da Pluggy
-def gerar_connect_token():
-    try:
-        client_id = st.secrets["pluggy"]["client_id"]
-        client_secret = st.secrets["pluggy"]["client_secret"]
-        
-        # 1. Autenticação para obter a API Key
-        auth_res = requests.post("https://api.pluggy.ai/auth", json={
-            "clientId": client_id,
-            "clientSecret": client_secret
-        })
-        api_key = auth_res.json().get("apiKey")
-        
-        # 2. Criação do Connect Token
-        token_res = requests.post("https://api.pluggy.ai/connect_token", 
-            headers={"X-API-KEY": api_key},
-            json={"options": {"clientUserId": "nicholas-exec-user"}}
-        )
-        return token_res.json().get("accessToken")
-    except Exception as e:
-        st.error(f"Erro ao gerar token: {e}")
-        return None
-
-st.markdown("### 🔗 Sincronização Bancária (Open Finance)")
-st.markdown("Conecte sua conta do Santander com segurança para atualizar os dados de forma automatizada.")
-
-if st.button("Conectar Conta Bancária"):
-    connect_token = gerar_connect_token()
-    if connect_token:
-        # Widget JavaScript da Pluggy embutido no Streamlit
-        pluggy_widget_html = f"""
-        <script src="https://api.pluggy.ai/connect.js"></script>
-        <div id="pluggy-connect-container"></div>
-        <script>
-            const pluggyConnect = new PluggyConnect({{
-                connectToken: "{connect_token}",
-                onSuccess: (data) => {{
-                    alert("Conta conectada com sucesso! Item ID: " + data.item.id);
-                }},
-                onError: (error) => {{
-                    console.error("Erro na conexão:", error);
-                }}
-            }});
-            pluggyConnect.init();
-        </script>
-        """
-        components.html(pluggy_widget_html, height=600)
-    else:
-        st.error("Não foi possível iniciar o assistente de conexão.")
+    )
