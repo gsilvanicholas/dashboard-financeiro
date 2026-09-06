@@ -230,7 +230,6 @@ if not df_original.empty:
             client_id = str(st.secrets["pluggy"]["client_id"]).strip()
             client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
             
-            # Autenticação API Pluggy enviando explicitamente os campos corretos
             payload = {
                 "clientId": client_id,
                 "clientSecret": client_secret
@@ -243,7 +242,6 @@ if not df_original.empty:
                 
             api_key = auth_res.json().get("apiKey")
             
-            # Geração do Connect Token
             token_res = requests.post("https://api.pluggy.ai/connect_token", 
                 headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
                 json={"clientUserId": "nicholas-exec-user"}
@@ -266,4 +264,9 @@ if not df_original.empty:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- TABELA DE GASTOS EM DESTAQUE EXTREMO ---
-    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=TOST)
+    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=True)
+    st.dataframe(
+        df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
+        use_container_width=True,
+        hide_index=True
+    )
