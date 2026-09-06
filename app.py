@@ -54,16 +54,13 @@ def carregar_dados_planilha():
         st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-# Função Direta usando o Item ID Fixo
+# Função blindada utilizando credenciais e item_id fixos no código
 @st.cache_data(ttl=300)
-def buscar_dados_pluggy_direto():
+def buscar_dados_pluggy_seguro():
     try:
-        if "pluggy" not in st.secrets or "item_id" not in st.secrets["pluggy"]:
-            return 0.0, 0.0, []
-            
         client_id = str(st.secrets["pluggy"]["client_id"]).strip()
         client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
-        item_id = str(st.secrets["pluggy"]["item_id"]).strip()
+        item_id = "6b12297a-5846-4732-8c6f-171717697388"
         
         # 1. Autenticação
         auth_res = requests.post("https://api.pluggy.ai/auth", json={
@@ -71,12 +68,12 @@ def buscar_dados_pluggy_direto():
             "clientSecret": client_secret
         })
         if auth_res.status_code != 200:
-            return 0.0, 0.0, []
+            return 0.0, 0.0, [], f"Falha Auth: {auth_res.text}"
             
         api_key = auth_res.json().get("apiKey")
         headers = {"X-API-KEY": api_key}
         
-        # 2. Buscar Contas do Item Específico
+        # 2. Buscar Contas
         contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
         saldo_conta = 0.0
         if contas_res.status_code == 200:
@@ -113,12 +110,12 @@ def buscar_dados_pluggy_direto():
                     "Status": "Confirmado (Santander)"
                 })
                 
-        return saldo_conta, saldo_investimentos, lista_transacoes
-    except Exception:
-        return 0.0, 0.0, []
+        return saldo_conta, saldo_investimentos, lista_transacoes, "OK"
+    except Exception as e:
+        return 0.0, 0.0, [], f"Erro: {str(e)}"
 
 df_original = carregar_dados_planilha()
-saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_pluggy_direto()
+saldo_santander, total_investimentos, transacoes_pluggy, status_conexao = buscar_dados_pluggy_seguro()
 
 if not df_original.empty:
     # --- HEADER EXECUTIVO ---
