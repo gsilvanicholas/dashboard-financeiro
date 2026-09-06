@@ -222,10 +222,10 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (REST REQUESTS PURO) ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (LINK DIRETO COM O TOKEN GERADO) ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
-    def gerar_token_rest():
+    def obter_token_e_url():
         try:
             client_id = str(st.secrets["pluggy"]["client_id"]).strip()
             client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
@@ -248,16 +248,18 @@ if not df_original.empty:
                 st.error(f"Erro Connect Token: {token_res.text}")
                 return None
                 
-            return token_res.json().get("accessToken")
+            connect_token = token_res.json().get("accessToken")
+            # Monta a URL web oficial do Pluggy Connect utilizando o parâmetro correto 'connectToken'
+            return f"https://connect.pluggy.ai/?connectToken={connect_token}"
         except Exception as e:
             st.error(f"Erro: {e}")
             return None
 
-    connect_token = gerar_token_rest()
-    if connect_token:
-        # Exibe o token gerado em um bloco seguro para que você possa copiar ou usar no assistente
-        st.success("✅ Connect Token gerado com sucesso via API REST!")
-        st.code(connect_token, language="text")
+    url_pluggy = obter_token_e_url()
+    if url_pluggy:
+        st.success("✅ Token gerado com sucesso!")
+        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Clique no botão abaixo para abrir a janela oficial de conexão do Santander:</p>", unsafe_allow_html=True)
+        st.link_button("🚀 Abrir Assistente Open Finance (Santander)", url_pluggy)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
