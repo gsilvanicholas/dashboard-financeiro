@@ -222,7 +222,7 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY) ---
+    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE (PLUGGY) COM DEPURAÇÃO ---
     st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
     
     def gerar_connect_token():
@@ -234,30 +234,9 @@ if not df_original.empty:
                 "clientId": client_id,
                 "clientSecret": client_secret
             })
-            api_key = auth_res.json().get("apiKey")
             
-            token_res = requests.post("https://api.pluggy.ai/connect_token", 
-                headers={"X-API-KEY": api_key},
-                json={"options": {"clientUserId": "nicholas-exec-user"}}
-            )
-            return token_res.json().get("accessToken")
-        except Exception as e:
-            return None
-
-    if st.button("Conectar Conta do Santander"):
-       def gerar_connect_token():
-        try:
-            client_id = st.secrets["pluggy"]["client_id"]
-            client_secret = st.secrets["pluggy"]["client_secret"]
-            
-            auth_res = requests.post("https://api.pluggy.ai/auth", json={
-                "clientId": client_id,
-                "clientSecret": client_secret
-            })
-            
-            # Se a resposta não for 200, mostra o erro detalhado da API na tela
             if auth_res.status_code != 200:
-                st.error(f"Erro Pluggy ({auth_res.status_code}): {auth_res.text}")
+                st.error(f"Erro Pluggy Auth ({auth_res.status_code}): {auth_res.text}")
                 return None
                 
             api_key = auth_res.json().get("apiKey")
@@ -275,3 +254,35 @@ if not df_original.empty:
         except Exception as e:
             st.error(f"Exceção capturada: {e}")
             return None
+
+    if st.button("Conectar Conta do Santander"):
+        connect_token = gerar_connect_token()
+        if connect_token:
+            pluggy_widget_html = f"""
+            <script src="https://api.pluggy.ai/connect.js"></script>
+            <div id="pluggy-connect-container" style="color: white; font-family: sans-serif;"></div>
+            <script>
+                const pluggyConnect = new PluggyConnect({{
+                    connectToken: "{connect_token}",
+                    onSuccess: (data) => {{
+                        const container = document.getElementById("pluggy-connect-container");
+                        container.innerHTML = "<h3 style='color: #00e676;'>✅ Conta Conectada com Sucesso!</h3><p>Copie o seu Item ID abaixo:</p><code style='background: #110f1f; padding: 10px; color: #00f2fe; font-size: 16px; display: block; border-radius: 6px;'>" + data.item.id + "</code>";
+                    }},
+                    onError: (error) => {{
+                        console.error("Erro na conexão:", error);
+                    }}
+                }});
+                pluggyConnect.init();
+            </script>
+            """
+            components.html(pluggy_widget_html, height=550)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- TABELA DE GASTOS EM DESTAQUE EXTREMO ---
+    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=True)
+    st.dataframe(
+        df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
+        use_container_width=True,
+        hide_index=True
+    )
