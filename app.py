@@ -44,22 +44,85 @@ st.markdown("""
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ3VnSkS3SR48P7huQS-PWlok-wEmocdpyu71vQ1jrZjTi_kHt4bWG6NXgy_3tfxh0mgifCxRiPRHQw/pub?output=csv"
 
 @st.cache_data(ttl=600)
-def carregar_dados():
+def carregar_dados_planilha():
     try:
         df = pd.read_csv(SHEET_CSV_URL)
         df['Valor (R$)'] = df['Valor (R$)'].replace({'R\$': '', '\.': '', ',': '.'}, regex=True)
         df['Valor (R$)'] = pd.to_numeric(df['Valor (R$)'], errors='coerce')
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"Erro ao carregar dados da planilha: {e}")
         return pd.DataFrame()
 
-df_original = carregar_dados()
+# Função para buscar saldos e transações utilizando o Item ID fixo
+@st.cache_data(ttl=300)
+def buscar_dados_pluggy():
+    try:
+        if "pluggy" not in st.secrets:
+            return 0.0, 0.0, []
+            
+        client_id = str(st.secrets["pluggy"]["client_id"]).strip()
+        client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
+        item_id = str(st.secrets["pluggy"]["item_id"]).strip()
+        
+        # 1. Autenticação
+        auth_res = requests.post("https://api.pluggy.ai/auth", json={
+            "clientId": client_id,
+            "clientSecret": client_secret
+        })
+        if auth_res.status_code != 200:
+            return 0.0, 0.0, []
+            
+        api_key = auth_res.json().get("apiKey")
+        headers = {"X-API-KEY": api_key}
+        
+        # 2. Buscar Contas (Accounts) do Item
+        contas_res = requests.get(f"https://api.pluggy.ai/accounts?itemId={item_id}", headers=headers)
+        saldo_conta = 0.0
+        if contas_res.status_code == 200:
+            contas = contas_res.json().get("results", [])
+            for conta in contas:
+                saldo_conta += conta.get("balance", 0.0)
+                
+        # 3. Buscar Investimentos (Investments) do Item
+        inv_res = requests.get(f"https://api.pluggy.ai/investments?itemId={item_id}", headers=headers)
+        saldo_investimentos = 0.0
+        if inv_res.status_code == 200:
+            investimentos = inv_res.json().get("results", [])
+            for inv in investimentos:
+                saldo_investimentos += inv.get("balance", 0.0)
+                
+        # 4. Buscar Transações (Transactions) do Item
+        transacoes_res = requests.get(f"https://api.pluggy.ai/transactions?itemId={item_id}&pageSize=50", headers=headers)
+        lista_transacoes = []
+        if transacoes_res.status_code == 200:
+            trans_data = transacoes_res.json().get("results", [])
+            for t in trans_data:
+                data_formatada = t.get("date", "")[:10]
+                descricao = t.get("description", "Transação Santander")
+                valor = t.get("amount", 0.0)
+                tipo = "Receita" if valor > 0 else "Despesa"
+                lista_transacoes.append({
+                    "ID": f"#PLG-{t.get('id', '')[:5]}",
+                    "Data": data_formatada,
+                    "Descrição": descricao,
+                    "Tipo": tipo,
+                    "Categoria": "Open Finance (Santander)",
+                    "Valor (R$)": abs(valor),
+                    "Status": "Confirmado (Santander)"
+                })
+                
+        return saldo_conta, saldo_investimentos, lista_transacoes
+    except Exception:
+        return 0.0, 0.0, []
+
+df_original = carregar_dados_planilha()
+saldo_santander, total_investimentos, transacoes_pluggy = buscar_dados_pluggy()
 
 if not df_original.empty:
     # --- HEADER EXECUTIVO ---
     st.markdown("<h2 style='color: #f1f0f5; font-weight: 700; margin-bottom: 0; letter-spacing: 0.5px;'>CONTROLE FINANCEIRO - NICHOLAS HENRIQUE GOMES DA SILVA</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #00f2fe; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER EXEC // CORE DE MONITORAMENTO PATRIMONIAL</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #00f2fe; font-size: 13px; margin-top: 2px; font-weight: 500;'>SANTANDER EXEC // CORE DE MONITORAMENTO PATRIMONIAL (OPEN FINANCE ATIVO)</p>", unsafe_allow_html=True)
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin-top: 10px; margin-bottom: 20px;'>", unsafe_allow_html=True)
 
     # --- FILTROS NO TOPO ---
@@ -85,40 +148,47 @@ if not df_original.empty:
     # CÁLCULOS DE KPIS
     receitas = df[df['Tipo'] == 'Receita']['Valor (R$)'].sum()
     despesas = df[df['Tipo'] == 'Despesa']['Valor (R$)'].sum()
-    investimentos = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum()
-    saldo_livre = receitas - despesas - investimentos
+    investimentos_base = df[df['Tipo'] == 'Investimento']['Valor (R$)'].sum() + total_investimentos
+    saldo_livre = receitas - despesas - investimentos_base
     
     receita_total_base = df_original[df_original['Tipo'] == 'Receita']['Valor (R$)'].sum()
-    taxa_poupanca = (investimentos / receita_total_base * 100) if receita_total_base > 0 else 0
+    taxa_poupanca = (investimentos_base / receita_total_base * 100) if receita_total_base > 0 else 0
     comprometimento_imovel = (df_original[df_original['Categoria'] == 'Parcela Apartamento']['Valor (R$)'].sum() / receita_total_base * 100) if receita_total_base > 0 else 0
     
     total_despesas_qtd = len(df[df['Tipo'] == 'Despesa'])
     ticket_medio_despesa = (despesas / total_despesas_qtd) if total_despesas_qtd > 0 else 0
 
-    # LINHA 1: KPIS PRINCIPAIS
-    c1, c2, c3, c4 = st.columns(4)
+    # LINHA 1: KPIS PRINCIPAIS (Com Saldo e Investimentos do Santander Integrados)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
+        st.markdown(f"""
+            <div class="metric-card" style="border-left: 4px solid #ec0000;">
+                <div class="metric-title">Conta Santander</div>
+                <div class="metric-value" style="color: #ff4d4d;">R$ {saldo_santander:,.2f}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with c2:
         st.markdown(f"""
             <div class="metric-card" style="border-left: 4px solid #00f2fe;">
                 <div class="metric-title">Renda Total Bruta</div>
                 <div class="metric-value">R$ {receitas:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c2:
+    with c3:
         st.markdown(f"""
             <div class="metric-card" style="border-left: 4px solid #ff007f;">
                 <div class="metric-title">Despesas Totais</div>
                 <div class="metric-value">R$ {despesas:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c3:
+    with c4:
         st.markdown(f"""
             <div class="metric-card" style="border-left: 4px solid #7f00ff;">
                 <div class="metric-title">Patrimônio & Aportes</div>
-                <div class="metric-value">R$ {investimentos:,.2f}</div>
+                <div class="metric-value">R$ {investimentos_base:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c4:
+    with c5:
         cor_hex = "#00e676" if saldo_livre >= 0 else "#ff007f"
         st.markdown(f"""
             <div class="metric-card" style="border-left: 4px solid {cor_hex};">
@@ -222,52 +292,17 @@ if not df_original.empty:
 
     st.markdown("<hr style='border: 1px solid #1f1b3c; margin: 25px 0;'>", unsafe_allow_html=True)
     
-    # --- BOTÃO DE INTEGRAÇÃO OPEN FINANCE COM GERADOR DE TOKEN SEGURO ---
-    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>🔗 Conexão Bancária Automatizada (Open Finance)</h4>", unsafe_allow_html=True)
+    # --- TABELA DE TRANSAÇÕES (PLANILHA + EXTRATO DO SANTANDER) ---
+    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações (Planilha + Extrato Santander Open Finance)</h4>", unsafe_allow_html=True)
     
-    def gerar_token_pluggy():
-        try:
-            client_id = str(st.secrets["pluggy"]["client_id"]).strip()
-            client_secret = str(st.secrets["pluggy"]["client_secret"]).strip()
-            
-            auth_res = requests.post("https://api.pluggy.ai/auth", json={
-                "clientId": client_id,
-                "clientSecret": client_secret
-            })
-            if auth_res.status_code != 200:
-                st.error(f"Erro Auth Pluggy: {auth_res.text}")
-                return None
-                
-            api_key = auth_res.json().get("apiKey")
-            
-            token_res = requests.post("https://api.pluggy.ai/connect_token", 
-                headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
-                json={"options": {"clientUserId": "nicholas-exec-user"}}
-            )
-            if token_res.status_code != 200:
-                st.error(f"Erro Connect Token: {token_res.text}")
-                return None
-                
-            return token_res.json().get("accessToken")
-        except Exception as e:
-            st.error(f"Erro: {e}")
-            return None
-
-    connect_token = gerar_token_pluggy()
-    if connect_token:
-        st.success("✅ Conexão com a API da Pluggy estabelecida com sucesso!")
-        st.markdown("<p style='color: #8b85a3; font-size: 13px;'>Para testar a conexão bancária com o Santander sem erros de URL, utilize o ambiente oficial de testes e demonstração da Pluggy:</p>", unsafe_allow_html=True)
-        st.link_button("🚀 Abrir Sandbox de Demonstração Pluggy", "https://meu.pluggy.ai/")
+    df_tabela = df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']].copy()
+    
+    if transacoes_pluggy:
+        df_pluggy = pd.DataFrame(transacoes_pluggy)
+        df_tabela = pd.concat([df_tabela, df_pluggy], ignore_index=True)
         
-        with st.expander("Ver Connect Token gerado para depuração"):
-            st.code(connect_token, language="text")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- TABELA DE GASTOS EM DESTAQUE EXTREMO ---
-    st.markdown("<h4 style='color: #00f2fe; font-size: 16px; font-weight: 600; margin-bottom: 12px;'>📋 Base de Transações e Lançamentos Detalhados</h4>", unsafe_allow_html=True)
     st.dataframe(
-        df[['ID', 'Data', 'Descrição', 'Tipo', 'Categoria', 'Valor (R$)', 'Status']], 
+        df_tabela, 
         use_container_width=True,
         hide_index=True
     )
